@@ -63,6 +63,8 @@ kind: Service
 metadata:
   name: inspection-ml-api
   namespace: ml-quality
+  labels:
+    app: inspection-ml-api
 spec:
   type: ClusterIP
   selector:
