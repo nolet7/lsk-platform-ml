@@ -1,0 +1,15 @@
+services:
+  ml-api:
+    build: .
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      DEMO_API_KEY: local-demo-key
+      MODEL_PATH: /opt/lsk/artifacts/model.json
+    volumes:
+      - ./artifacts:/opt/lsk/artifacts:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
