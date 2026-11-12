@@ -1,0 +1,31 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: inspection-ml-api
+  namespace: ml-quality
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: inspection-ml-api
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: inspection-ml-api
+  namespace: ml-quality
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: inspection-ml-api
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65
+# Configure metrics-server, cluster capacity and load test before enabling.

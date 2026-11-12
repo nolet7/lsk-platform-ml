@@ -1,0 +1,32 @@
+# Requires prometheus-operator CRDs and ServiceMonitor discovery permissions.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: inspection-ml-api
+  namespace: ml-quality
+spec:
+  selector:
+    matchLabels:
+      app: inspection-ml-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lsk-ml-alerts
+  namespace: ml-quality
+spec:
+  groups:
+    - name: ml-platform
+      rules:
+        - alert: InspectionMLHighErrorRate
+          expr: sum(rate(lsk_ml_requests_total{result!="success"}[5m])) / clamp_min(sum(rate(lsk_ml_requests_total[5m])), 0.001) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Inspection inference errors exceed 5 percent
+# The POC counter is insufficient for real latency SLOs. Add HTTP histogram and availability before go-live.

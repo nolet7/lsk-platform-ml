@@ -1,0 +1,73 @@
+# Production reference only: DO NOT APPLY with placeholder image/identity.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inspection-ml-api
+  namespace: ml-quality
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: inspection-ml-api
+  template:
+    metadata:
+      labels:
+        app: inspection-ml-api
+    spec:
+      serviceAccountName: ml-inference # requires scoped IAM / non-demo OIDC integration
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: inspection-ml-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: REPLACE_WITH_SIGNED_APPROVED_IMAGE_AT_SHA256_DIGEST
+          ports:
+            - name: http
+              containerPort: 8765
+          # Demo POC's header auth MUST be replaced before real deployment.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inspection-ml-api
+  namespace: ml-quality
+spec:
+  type: ClusterIP
+  selector:
+    app: inspection-ml-api
+  ports:
+    - name: http
+      port: 8765
+      targetPort: http

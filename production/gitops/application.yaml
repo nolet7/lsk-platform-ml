@@ -1,0 +1,19 @@
+# Example only; requires a configured Argo CD control plane.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inspection-ml-production
+  namespace: argocd
+spec:
+  project: regulated-ml
+  source:
+    repoURL: https://github.com/nolet7/lsk-platform-ml.git
+    targetRevision: production
+    path: production/k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ml-quality
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+# Deliberately no automated sync until approvals and policy controls are implemented.
