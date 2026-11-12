@@ -1,0 +1,30 @@
+# Argo Workflows blueprint; requires controller, artifact repository and approved image.
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: lsk-inspection-train-
+  namespace: ml-quality
+spec:
+  entrypoint: train-evaluate
+  serviceAccountName: ml-workflow-runner # Provision and scope separately
+  templates:
+    - name: train-evaluate
+      steps:
+        - - name: train
+            template: train
+        - - name: gate
+            template: evaluation
+    - name: train
+      container:
+        image: REPLACE_WITH_APPROVED_ECR_IMAGE_DIGEST
+        command: [python, -m, ml.train]
+        resources:
+          requests: {cpu: "1", memory: 1Gi}
+          limits: {cpu: "2", memory: 2Gi}
+    - name: evaluation
+      container:
+        image: REPLACE_WITH_APPROVED_ECR_IMAGE_DIGEST
+        command: [python, -m, ml.evaluate]
+        args: ["--report", "/shared/report.json", "--min-auc", "0.85"]
+# NOT deployable yet: add shared artifact workflow volume/object-store passing, identity,
+# secured executor, metrics gates, retention and approval service integration.
