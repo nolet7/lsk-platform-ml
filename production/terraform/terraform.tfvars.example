@@ -1,0 +1,8 @@
+# Fill from approved network/architecture/FinOps design; no real account details in Git.
+aws_region = "us-east-1"
+environment = "prod"
+vpc_cidr = "10.42.0.0/16"
+kubernetes_version = "1.34"
+node_instance_types = ["m6i.large"]
+eks_deployer_role_arn = "arn:aws:iam::123456789012:role/lsk-ml-prod-deployer"
+artifact_bucket_name = "replace-with-unique-approved-bucket-name"

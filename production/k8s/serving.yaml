@@ -1,4 +1,4 @@
-# Production reference only: DO NOT APPLY with placeholder image/identity.
+# CI replaces REPLACE_WITH_APPROVED_ECR_IMAGE_DIGEST before apply.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -8,68 +8,63 @@ spec:
   replicas: 3
   revisionHistoryLimit: 5
   selector:
-    matchLabels:
-      app: inspection-ml-api
+    matchLabels: {app: inspection-ml-api}
   template:
     metadata:
-      labels:
-        app: inspection-ml-api
+      labels: {app: inspection-ml-api}
     spec:
-      serviceAccountName: ml-inference # requires scoped IAM / non-demo OIDC integration
+      serviceAccountName: ml-inference
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           labelSelector:
-            matchLabels:
-              app: inspection-ml-api
+            matchLabels: {app: inspection-ml-api}
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
-        seccompProfile:
-          type: RuntimeDefault
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
       containers:
         - name: api
-          image: REPLACE_WITH_SIGNED_APPROVED_IMAGE_AT_SHA256_DIGEST
+          image: REPLACE_WITH_APPROVED_ECR_IMAGE_DIGEST
+          imagePullPolicy: IfNotPresent
           ports:
-            - name: http
-              containerPort: 8765
-          # Demo POC's header auth MUST be replaced before real deployment.
+            - {name: http, containerPort: 8765}
+          env:
+            - {name: APP_ENV, value: production}
+            - name: OIDC_ISSUER
+              valueFrom: {configMapKeyRef: {name: ml-auth, key: issuer}}
+            - name: OIDC_AUDIENCE
+              valueFrom: {configMapKeyRef: {name: ml-auth, key: audience}}
+            - name: OIDC_JWKS_URL
+              valueFrom: {configMapKeyRef: {name: ml-auth, key: jwks_url}}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            capabilities:
-              drop: ["ALL"]
+            capabilities: {drop: ["ALL"]}
           readinessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
+            httpGet: {path: /readyz, port: http}
+            initialDelaySeconds: 8
             periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 20
           resources:
-            requests:
-              cpu: 250m
-              memory: 256Mi
-            limits:
-              cpu: "2"
-              memory: 1Gi
+            requests: {cpu: 250m, memory: 384Mi}
+            limits: {cpu: "2", memory: 1Gi}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: inspection-ml-api
   namespace: ml-quality
-  labels:
-    app: inspection-ml-api
+  labels: {app: inspection-ml-api}
 spec:
   type: ClusterIP
-  selector:
-    app: inspection-ml-api
+  selector: {app: inspection-ml-api}
   ports:
-    - name: http
-      port: 8765
-      targetPort: http
+    - {name: http, port: 8765, targetPort: http}
