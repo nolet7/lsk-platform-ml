@@ -30,3 +30,12 @@ variable "eks_deployer_role_arn" {
     error_message = "Must be an IAM role ARN."
   }
 }
+
+variable "eks_platform_admin_role_arn" {
+  type        = string
+  description = "Separate privileged cluster-bootstrap role, not used by CI deployer."
+  validation {
+    condition     = can(regex("^arn:aws:iam::[0-9]{12}:role/", var.eks_platform_admin_role_arn))
+    error_message = "Must be an IAM role ARN."
+  }
+}

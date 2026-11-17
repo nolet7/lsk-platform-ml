@@ -28,6 +28,13 @@ jobs:
         run: |
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
           test "$(git rev-parse HEAD)" = "$SHA"
+      - name: Enforce release from protected production branch head
+        env:
+          SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          APPROVED="$(git ls-remote origin refs/heads/production | awk '{print $1}')"
+          test -n "$APPROVED" && test "$SHA" = "$APPROVED"
       - uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
@@ -102,7 +109,8 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$ISSUER" && test -n "$AUDIENCE" && test -n "$JWKS" && test -n "$DATABASE_URL"
-          kubectl apply -f production/k8s/namespace.yaml
+          kubectl -n ml-quality get namespace ml-quality
+          kubectl apply -f production/k8s/serviceaccount.yaml
           kubectl -n ml-quality create configmap ml-auth --from-literal=issuer="$ISSUER" --from-literal=audience="$AUDIENCE" --from-literal=jwks_url="$JWKS" --dry-run=client -o yaml | kubectl apply -f -
           kubectl -n ml-quality create secret generic ml-database --from-literal=url="$DATABASE_URL" --dry-run=client -o yaml | kubectl apply -f -
       - name: Deploy immutable approved image

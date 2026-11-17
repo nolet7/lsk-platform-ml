@@ -5,10 +5,3 @@ metadata:
   labels:
     app.kubernetes.io/part-of: lsk-platform-ml
     pod-security.kubernetes.io/enforce: restricted
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: ml-inference
-  namespace: ml-quality
-automountServiceAccountToken: false

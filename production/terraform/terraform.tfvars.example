@@ -6,3 +6,4 @@ node_instance_types = ["m6i.large"]
 db_instance_class = "db.t4g.medium"
 eks_deployer_role_arn = "arn:aws:iam::123456789012:role/lsk-ml-prod-deployer"
 artifact_bucket_name = "replace-with-approved-unique-name"
+eks_platform_admin_role_arn = "arn:aws:iam::123456789012:role/lsk-ml-prod-bootstrap-admin"

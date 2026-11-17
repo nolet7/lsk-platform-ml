@@ -60,6 +60,15 @@ module "eks" {
     eks-pod-identity-agent = { before_compute = true }
   }
   access_entries = {
+    platform_bootstrap_admin = {
+      principal_arn = var.eks_platform_admin_role_arn
+      policy_associations = {
+        cluster_admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
     platform_deployer = {
       principal_arn = var.eks_deployer_role_arn
       policy_associations = {
