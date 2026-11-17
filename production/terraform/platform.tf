@@ -93,7 +93,7 @@ module "eks" {
       capacity_type  = "ON_DEMAND"
       labels         = { workload = "api" }
     }
-  }, var.enable_gpu_nodes ? {
+    }, var.enable_gpu_nodes ? {
     gpu = {
       ami_type       = "AL2023_x86_64_NVIDIA"
       instance_types = var.gpu_instance_types
