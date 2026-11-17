@@ -69,7 +69,7 @@ module "eks" {
         }
       }
     }
-    platform_deployer       = {
+    platform_deployer = {
       principal_arn = var.eks_deployer_role_arn
       policy_associations = {
         namespace_admin = {
