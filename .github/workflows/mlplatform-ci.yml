@@ -1,9 +1,9 @@
 name: ML platform control plane checks
 on:
   pull_request:
-    branches: [production]
+    branches: [production, feature/ml-deployment-platform-control-plane]
   push:
-    branches: [feature/ml-deployment-platform-control-plane]
+    branches: [feature/ml-deployment-platform-control-plane, feature/enterprise-ml-platform-completion]
 permissions:
   contents: read
 jobs:
