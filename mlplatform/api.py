@@ -102,9 +102,13 @@ def status(name: str, environment: str, ctx: dict = Depends(identity)):
     if environment not in ("stage","production"):
         raise HTTPException(422,"invalid environment")
     try:
-        return store.deployment(ctx["tenant"],name,environment)
+        result=store.deployment(ctx["tenant"],name,environment)
+        result["observed"]=controller.observe(ctx["tenant"],name,environment)
+        return result
     except LookupError as exc:
         raise HTTPException(404,str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502,"Kubernetes rollout status unavailable") from exc
 
 @app.get("/v1/platform/deployments/{name}/history")
 def history(name: str, environment: str, ctx: dict = Depends(identity)):
@@ -122,8 +126,10 @@ def rollback(name: str, environment: str, body: RollbackRequest,
     rows=store.history(ctx["tenant"],name,environment)
     if len(rows)<2:
         raise HTTPException(409,"no previous revision to roll back to")
-    target=rows[1]
-    # Previous revision has a previously approved model_id; a rollback is a new auditable revision.
+    target=next((r for r in rows[1:] if r["state"]=="submitted"),None)
+    if target is None:
+        raise HTTPException(409,"no previous submitted revision to restore")
+    # Rollback creates a new auditable revision using the previously approved model.
     try:
         namespace=target_namespace(ctx["tenant"],environment)
         row=store.prepare(ctx["tenant"],ctx["actor"],str(target["model_id"]),

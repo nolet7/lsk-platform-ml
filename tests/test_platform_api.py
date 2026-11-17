@@ -34,6 +34,7 @@ def test_platform_registration_approval_and_deploy(monkeypatch):
     monkeypatch.setattr(api,"store",fake)
     monkeypatch.setattr(api,"verify_evidence",lambda tenant, body: None)
     monkeypatch.setattr(api.controller,"apply",lambda *args:{"state":"submitted"})
+    monkeypatch.setattr(api.controller,"observe",lambda *args:{"healthy":True,"state":"healthy"})
     app.dependency_overrides[auth]=lambda:{"sub":"engineer","tenant_id":"tenant-a","scope":"ml:register ml:approve ml:deploy ml:read ml:rollback"}
     client=TestClient(app)
     try:
