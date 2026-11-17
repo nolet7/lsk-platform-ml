@@ -7,6 +7,7 @@ from app.contracts import PredictRequest, ReviewRequest
 from app.legacy import get_order, get_inspection, record_prediction, record_review
 from app.model import predict, ModelNotReady
 from app.security import auth, require_scope
+from app import persistence
 
 app = FastAPI(title="LSK Aerospace Inspection ML", version="1.0.0")
 requests_total = Counter("lsk_ml_requests_total", "ML inference request count", ["result"])
@@ -24,6 +25,12 @@ def ready():
         os.getenv(k) for k in ("OIDC_ISSUER", "OIDC_AUDIENCE", "OIDC_JWKS_URL")
     ):
         raise HTTPException(503, "OIDC not configured")
+    if os.getenv("APP_ENV") == "production":
+        try:
+            if not persistence.check_database():
+                raise HTTPException(503, "database unavailable")
+        except Exception as exc:
+            raise HTTPException(503, "database unavailable") from exc
     return {"status": "ready"}
 
 @app.get("/metrics")
@@ -57,7 +64,9 @@ def infer(request: PredictRequest, claims: dict = Depends(auth)):
     except ModelNotReady as exc:
         requests_total.labels("model_unavailable").inc()
         raise HTTPException(503, str(exc)) from exc
-    prediction_id = record_prediction(request.inspection_id, outcome)
+    prediction_id = (persistence.record_prediction(request.inspection_id, outcome)
+                     if os.getenv('APP_ENV') == 'production'
+                     else record_prediction(request.inspection_id, outcome))
     requests_total.labels("success").inc()
     return {"prediction_id": prediction_id, "inspection_id": request.inspection_id,
             **outcome, "notice": "Decision support only: authorized human disposition required"}
@@ -75,7 +84,8 @@ def review(request: ReviewRequest, claims: dict = Depends(auth),
     if not get_inspection(request.inspection_id):
         raise HTTPException(404, "inspection not found")
     try:
-        return record_review(request.inspection_id, request.prediction_id,
-                             reviewer, request.disposition, request.rationale)
+        fn = persistence.record_review if os.getenv('APP_ENV') == 'production' else record_review
+        return fn(request.inspection_id, request.prediction_id,
+                  reviewer, request.disposition, request.rationale)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc

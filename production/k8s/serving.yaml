@@ -36,6 +36,8 @@ spec:
             - {name: http, containerPort: 8765}
           env:
             - {name: APP_ENV, value: production}
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: ml-database, key: url}}
             - name: OIDC_ISSUER
               valueFrom: {configMapKeyRef: {name: ml-auth, key: issuer}}
             - name: OIDC_AUDIENCE
