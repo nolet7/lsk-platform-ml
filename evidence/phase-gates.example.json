@@ -1,0 +1,99 @@
+{
+  "project": "lsk-platform-ml",
+  "environment": "synthetic-portfolio",
+  "disclaimer": "Example only; no production/pilot claims",
+  "phases": {
+    "poc": {
+      "controls": {
+        "POC-API": {
+          "status": "pending",
+          "evidence": []
+        },
+        "POC-TESTS": {
+          "status": "pending",
+          "evidence": []
+        },
+        "POC-LINEAGE": {
+          "status": "pending",
+          "evidence": []
+        },
+        "POC-SAFETY": {
+          "status": "pending",
+          "evidence": []
+        }
+      },
+      "approvals": []
+    },
+    "pilot": {
+      "controls": {
+        "PILOT-IDENTITY": {
+          "status": "pending",
+          "evidence": []
+        },
+        "PILOT-MLFLOW": {
+          "status": "pending",
+          "evidence": []
+        },
+        "PILOT-JOBS": {
+          "status": "pending",
+          "evidence": []
+        },
+        "PILOT-OBS": {
+          "status": "pending",
+          "evidence": []
+        },
+        "PILOT-ADOPTION": {
+          "status": "pending",
+          "evidence": []
+        }
+      },
+      "approvals": []
+    },
+    "production": {
+      "controls": {
+        "PROD-INFRA": {
+          "status": "pending",
+          "evidence": []
+        },
+        "PROD-SECURITY": {
+          "status": "pending",
+          "evidence": []
+        },
+        "PROD-RELEASE": {
+          "status": "pending",
+          "evidence": []
+        },
+        "PROD-DR": {
+          "status": "pending",
+          "evidence": []
+        },
+        "PROD-SLO": {
+          "status": "pending",
+          "evidence": []
+        },
+        "PROD-CAB": {
+          "status": "pending",
+          "evidence": []
+        }
+      },
+      "approvals": []
+    },
+    "handover": {
+      "controls": {
+        "OPS-RUNBOOK": {
+          "status": "pending",
+          "evidence": []
+        },
+        "OPS-RECOVERY": {
+          "status": "pending",
+          "evidence": []
+        },
+        "OPS-OWNERSHIP": {
+          "status": "pending",
+          "evidence": []
+        }
+      },
+      "approvals": []
+    }
+  }
+}
