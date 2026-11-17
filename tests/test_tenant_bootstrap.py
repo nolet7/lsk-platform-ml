@@ -5,7 +5,7 @@ from production.scripts.render_tenant_bootstrap import build
 def test_bootstrap_rbac_scopes_only_tenant_namespace(monkeypatch):
     mapping={"tenant-a":{"stage":"tenant-a-stage","production":"tenant-a-prod"}}
     output=build(mapping)
-    assert len(output["items"])==20
+    assert len(output["items"])==22
     roles=[x for x in output["items"] if x["kind"]=="Role"]
     assert len(roles)==4
     assert all(x["metadata"]["namespace"].startswith("tenant-a-") for x in roles)

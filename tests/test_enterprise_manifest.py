@@ -16,7 +16,7 @@ def test_tenant_role_bindings():
     api=[i for i in roles if i["metadata"]["name"]=="ml-platform-read-only"]
     assert len(api)==2
     assert all(r["rules"][0]["verbs"]==["get"] for r in api)
-    assert len([i for i in m["items"] if i["kind"]=="NetworkPolicy"])==2
+    assert len([i for i in m["items"] if i["kind"]=="NetworkPolicy"])==4
 
 def test_worker_release_image_placeholder():
     template=Path("production/k8s/mlplatform-worker.yaml").read_text()
