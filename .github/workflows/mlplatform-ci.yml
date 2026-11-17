@@ -20,5 +20,7 @@ jobs:
         run: python -m pytest -q
       - name: Build separate ML platform API image
         run: docker build --pull -f mlplatform/Dockerfile -t mlplatform:ci .
+      - name: Build reconciliation worker
+        run: docker build --pull -f mlplatform/worker.Dockerfile -t mlplatform-worker:ci .
       - name: Validate synthetic example image
         run: docker build --pull -f examples/sklearn_inference/Dockerfile -t aerospace-model-example:ci .

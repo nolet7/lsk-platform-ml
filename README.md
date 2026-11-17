@@ -76,3 +76,9 @@ docker build -f examples/sklearn_inference/Dockerfile -t lsk-inference-example:l
 **Not validated end-to-end:** identity provider integration, actual MLflow tracking service, PostgreSQL migration, private EKS workload launch, model image provenance/signing, per-tenant network isolation, live drift and SLO monitoring, automated progressive rollout, GPU/Ray jobs, cluster failure recovery, data classification, signed handover. See [project production status](docs/PRODUCTION_DEPLOYMENT_STATUS.md).
 
 This public project is an engineering demonstration, **not evidence that an employer ran the architecture in production**.
+
+## Enterprise completion branch
+
+The `feature/enterprise-ml-platform-completion` branch adds a PostgreSQL-backed reconciliation queue, bounded worker leases/retries, Kubernetes worker deployment, API/worker privilege separation, tenant resource limits, enterprise release gates, and database integration tests. Read [capability matrix](docs/enterprise/CAPABILITY_MATRIX.md), [operations runbook](docs/enterprise/OPERATIONS_RUNBOOK.md), and [release gates](docs/enterprise/PRODUCTION_RELEASE_GATES.md).
+
+Deployment API returns `pending` after writing a durable request. A worker applies desired state; `submitted` means Kubernetes accepted it, not that inference is healthy. GET status checks the observed revision and image digest. This still requires live AWS/OIDC/MLflow/PostgreSQL/Kubernetes and security validation before production.

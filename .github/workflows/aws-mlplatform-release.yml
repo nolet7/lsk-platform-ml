@@ -17,6 +17,7 @@ jobs:
       id-token: write
     outputs:
       image: ${{ steps.digest.outputs.image }}
+      worker_image: ${{ steps.worker_digest.outputs.image }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,6 +48,29 @@ jobs:
           aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
           docker build --pull -f mlplatform/Dockerfile -t "$URI:$SHA" .
           docker push "$URI:$SHA"
+      - name: Build and publish immutable reconciliation worker
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+          REPO: ${{ vars.ML_PLATFORM_WORKER_ECR_REPOSITORY }}
+          SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          URI="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$REPO"
+          docker build --pull -f mlplatform/worker.Dockerfile -t "$URI:$SHA" .
+          docker push "$URI:$SHA"
+      - name: Resolve worker ECR digest
+        id: worker_digest
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+          REPO: ${{ vars.ML_PLATFORM_WORKER_ECR_REPOSITORY }}
+          SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          D="$(aws ecr describe-images --repository-name "$REPO" --image-ids "imageTag=$SHA" --query 'imageDetails[0].imageDigest' --output text)"
+          [[ "$D" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
+          echo "image=$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$REPO@$D" >> "$GITHUB_OUTPUT"
       - name: Resolve ECR digest
         id: digest
         env:
@@ -115,6 +139,15 @@ jobs:
           python production/scripts/prepare_release.py --input production/k8s/ml-platform-api.yaml --image "$IMAGE" --output /tmp/ml-platform-api.yaml
           kubectl apply -f /tmp/ml-platform-api.yaml
           kubectl -n ml-quality rollout status deploy/ml-platform-api --timeout=10m
+      - name: Deploy worker and reliability resources
+        env:
+          WORKER_IMAGE: ${{ needs.build.outputs.worker_image }}
+        run: |
+          set -euo pipefail
+          python production/scripts/prepare_release.py --input production/k8s/mlplatform-worker.yaml --image "$WORKER_IMAGE" --output /tmp/ml-platform-worker.yaml
+          kubectl apply -f /tmp/ml-platform-worker.yaml
+          kubectl apply -f production/k8s/platform-reliability.yaml
+          kubectl -n ml-quality rollout status deploy/ml-platform-worker --timeout=10m
       - name: Verify platform health and deny unauthenticated model operations
         run: |
           set -euo pipefail
