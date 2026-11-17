@@ -6,10 +6,10 @@ The workload is an independently built OCI inference image implementing GET
 import os
 from fastapi import FastAPI, HTTPException, Depends
 from app.security import auth, require_scope
-from platform.manifest import validate_image, target_namespace
-from platform.schemas import ModelRegistration, Approval, DeploymentRequest, RollbackRequest
-from platform.store import Store
-from platform import controller
+from mlplatform.manifest import validate_image, target_namespace
+from mlplatform.schemas import ModelRegistration, Approval, DeploymentRequest, RollbackRequest
+from mlplatform.store import Store
+from mlplatform import controller
 
 app = FastAPI(title="LSK ML Deployment Platform", version="1.0.0")
 store = Store()

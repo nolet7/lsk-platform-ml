@@ -1,8 +1,8 @@
 import json
 from fastapi.testclient import TestClient
 from app.security import auth
-from platform.api import app, identity
-import platform.api as api
+from mlplatform.api import app, identity
+import mlplatform.api as api
 
 class FakeStore:
     def __init__(self):

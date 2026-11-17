@@ -1,7 +1,7 @@
 import json
 import pytest
-from platform.manifest import validate_image, target_namespace, workload
-from platform.schemas import ModelRegistration
+from mlplatform.manifest import validate_image, target_namespace, workload
+from mlplatform.schemas import ModelRegistration
 
 IMAGE="123456789012.dkr.ecr.us-east-1.amazonaws.com/tenant-model@sha256:"+"a"*64
 

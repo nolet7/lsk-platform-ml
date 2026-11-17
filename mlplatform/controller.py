@@ -3,7 +3,7 @@
 Requires service account RBAC only in allowlisted serving namespaces.
 No external cluster credentials or namespaces accepted in user payloads.
 """
-from platform.manifest import workload
+from mlplatform.manifest import workload
 
 def apply(tenant, name, environment, image, replicas, revision):
     namespace, deploy, service = workload(
