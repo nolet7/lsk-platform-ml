@@ -43,6 +43,8 @@ def serve(store,tenant,actor,name,environment,raw_body):
         raise HTTPException(422,"invalid tenant/model routing") from exc
     except Exception as exc:
         raise HTTPException(503,"deployment health verification unavailable") from exc
+    if deployment.get("revoked"):
+        raise HTTPException(403,"model revision has been revoked")
     if deployment["state"]!="submitted" or not observed.get("healthy"):
         raise HTTPException(503,"requested model revision is not healthy")
     url=service_url(tenant,name,environment)

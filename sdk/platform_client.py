@@ -25,6 +25,10 @@ class MLPlatformClient:
         return self._request("POST",f"/v1/platform/models/{model_id}/approve",
                              json={"reason":reason})
 
+    def revoke_model(self, model_id, reason):
+        return self._request("POST",f"/v1/platform/models/{model_id}/revoke",
+                             json={"reason":reason})
+
     def deploy_model(self, *, model_id, name, environment, replicas=2):
         return self._request("POST","/v1/platform/deployments",json={
             "model_id":model_id,"name":name,"environment":environment,"replicas":replicas

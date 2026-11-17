@@ -48,9 +48,11 @@ class Store:
     def deployment(self, tenant, name, environment):
         with connect() as conn, conn.cursor() as cur:
             cur.execute(
-                """SELECT id,model_id,revision,image,replicas,state,namespace
-                   FROM platform_deployments WHERE tenant_id=%s AND name=%s AND environment=%s
-                   ORDER BY revision DESC LIMIT 1""",
+                """SELECT d.id,d.model_id,d.revision,d.image,d.replicas,d.state,d.namespace,
+                          (m.revoked_at IS NOT NULL) AS revoked
+                   FROM platform_deployments d JOIN platform_models m ON d.model_id=m.id
+                   WHERE d.tenant_id=%s AND d.name=%s AND d.environment=%s
+                   ORDER BY d.revision DESC LIMIT 1""",
                 (tenant,name,environment))
             row=cur.fetchone()
         if not row:
@@ -73,7 +75,7 @@ class Store:
         with connect() as conn, conn.cursor() as cur:
             cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (lock_key,))
             cur.execute(
-                """SELECT image,name,approved_by FROM platform_models
+                """SELECT image,name,approved_by,revoked_at FROM platform_models
                    WHERE tenant_id=%s AND id=%s FOR SHARE""", (tenant,model_id))
             model = cur.fetchone()
             if not model:
@@ -82,6 +84,8 @@ class Store:
                 raise PermissionError("model approval required before deployment")
             if model["name"] != name:
                 raise ValueError("deployment name must match registered model name")
+            if model["revoked_at"] is not None:
+                raise PermissionError("revoked model cannot be deployed")
             cur.execute(
                 """SELECT COALESCE(MAX(revision),0)+1 AS revision FROM platform_deployments
                    WHERE tenant_id=%s AND name=%s AND environment=%s""",
@@ -245,3 +249,21 @@ class Store:
                 (tenant_id,actor,deployment_id,http_status,latency_ms)
                 VALUES (%s,%s,%s,%s,%s)""",
                 (tenant,actor,deployment_id,status,latency_ms))
+
+    def revoke(self,tenant,actor,model_id,reason):
+        with connect() as conn,conn.cursor() as cur:
+            cur.execute("""UPDATE platform_models SET revoked_by=%s,revocation_reason=%s,
+                        revoked_at=now() WHERE id=%s AND tenant_id=%s
+                          AND revoked_at IS NULL RETURNING id""",
+                        (actor,reason,model_id,tenant))
+            if not cur.fetchone():
+                raise LookupError("model missing or already revoked")
+            # Pending jobs will never be reconciled after revocation.
+            cur.execute("""UPDATE platform_deployments
+                SET state='failed',updated_at=now()
+                WHERE tenant_id=%s AND model_id=%s AND state IN ('pending','retry')""",
+                (tenant,model_id))
+            cur.execute("""INSERT INTO platform_audit (tenant_id,actor,event,resource_id)
+                           VALUES (%s,%s,'model_revoked',%s)""",
+                        (tenant,actor,model_id))
+        return {"id":str(model_id),"state":"revoked"}

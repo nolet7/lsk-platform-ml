@@ -101,6 +101,15 @@ def approve(model_id: str, body: Approval, ctx: dict = Depends(identity)):
     except ValueError as exc:
         raise HTTPException(409,str(exc)) from exc
 
+
+@app.post("/v1/platform/models/{model_id}/revoke")
+def revoke_model(model_id:str,body:Approval,ctx:dict=Depends(identity)):
+    check(ctx,"ml:revoke")
+    try:
+        return store.revoke(ctx["tenant"],ctx["actor"],model_id,body.reason)
+    except LookupError as exc:
+        raise HTTPException(404,"model missing or already revoked") from exc
+
 @app.post("/v1/platform/deployments", status_code=202)
 def deploy(body: DeploymentRequest, ctx: dict = Depends(identity)):
     check(ctx,"ml:deploy")
