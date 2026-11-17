@@ -109,7 +109,6 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$ISSUER" && test -n "$AUDIENCE" && test -n "$JWKS" && test -n "$DATABASE_URL"
-          kubectl -n ml-quality get namespace ml-quality
           kubectl apply -f production/k8s/serviceaccount.yaml
           kubectl -n ml-quality create configmap ml-auth --from-literal=issuer="$ISSUER" --from-literal=audience="$AUDIENCE" --from-literal=jwks_url="$JWKS" --dry-run=client -o yaml | kubectl apply -f -
           kubectl -n ml-quality create secret generic ml-database --from-literal=url="$DATABASE_URL" --dry-run=client -o yaml | kubectl apply -f -
