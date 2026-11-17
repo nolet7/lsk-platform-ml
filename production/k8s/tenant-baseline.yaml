@@ -1,0 +1,38 @@
+# Example for APPROVED tenant namespace only. Rendered names must be substituted
+# by an authorized cluster bootstrap pipeline, not user payloads.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ml-serving-quota
+  namespace: REPLACE_WITH_TENANT_NAMESPACE
+spec:
+  hard:
+    requests.cpu: "12"
+    requests.memory: 32Gi
+    limits.cpu: "24"
+    limits.memory: 64Gi
+    pods: "36"
+    services: "12"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ml-serving-limits
+  namespace: REPLACE_WITH_TENANT_NAMESPACE
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 250m, memory: 512Mi}
+      default: {cpu: "2", memory: 2Gi}
+      max: {cpu: "4", memory: 8Gi}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-default-deny
+  namespace: REPLACE_WITH_TENANT_NAMESPACE
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+# Additional allow-list DNS, ECR endpoints, metrics and upstream API egress
+# must be deployed as reviewed environment overlays.

@@ -1,0 +1,32 @@
+# Requires validated enforcement (e.g. AWS VPC CNI network policy mode or Cilium).
+# CIDR/namespace connectivity policy must be tailored to approved PostgreSQL,
+# OIDC, MLflow and Kubernetes API endpoints BEFORE applying a default-deny egress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ml-platform-ingress
+  namespace: ml-quality
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [ml-platform-api,ml-platform-worker]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              lsk.ai/allow-platform-access: "true"
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ml-platform-worker-no-inbound
+  namespace: ml-quality
+spec:
+  podSelector:
+    matchLabels: {app: ml-platform-worker}
+  policyTypes: [Ingress]

@@ -1,0 +1,39 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ml-platform-api
+  namespace: ml-quality
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: {app: ml-platform-api}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ml-platform-api
+  namespace: ml-quality
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ml-platform-api
+  minReplicas: 3
+  maxReplicas: 9
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ml-platform-worker
+  namespace: ml-quality
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: ml-platform-worker}

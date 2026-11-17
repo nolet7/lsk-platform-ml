@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-platform-worker
+  namespace: ml-quality
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: ml-platform-worker}
+  template:
+    metadata:
+      labels: {app: ml-platform-worker}
+    spec:
+      serviceAccountName: ml-platform-controller
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: worker
+          image: REPLACE_WITH_APPROVED_ECR_WORKER_DIGEST
+          env:
+            - {name: APP_ENV, value: production}
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: ml-database, key: url}}
+            - name: TENANT_NAMESPACE_MAP
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: tenant_namespace_map}}
+            - name: AWS_ACCOUNT_ID
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: aws_account_id}}
+            - name: AWS_REGION
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: aws_region}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
