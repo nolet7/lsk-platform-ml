@@ -30,10 +30,13 @@ jobs:
           - {name: control-plane, dockerfile: mlplatform/Dockerfile}
           - {name: worker, dockerfile: mlplatform/worker.Dockerfile}
           - {name: inference-example, dockerfile: examples/sklearn_inference/Dockerfile}
+          - {name: ray-training, dockerfile: examples/ray_training/Dockerfile}
     steps:
       - uses: actions/checkout@v4
       - name: Build image for scanning
-        run: docker build --pull -f "${{ matrix.dockerfile }}" -t "lsk-ml-${{ matrix.name }}:security" .
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: docker build --pull -f "${{ matrix.dockerfile }}" --build-arg "SOURCE_GIT_SHA=$SOURCE_SHA" -t "lsk-ml-${{ matrix.name }}:security" .
       - name: Scan image vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:

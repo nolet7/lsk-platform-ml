@@ -36,8 +36,22 @@ def job_manifest(row):
     labels={"lsk.ai/tenant":tenant,"lsk.ai/managed-by":"ml-platform"}
     security={"runAsNonRoot":True,"runAsUser":10001,
               "seccompProfile":{"type":"RuntimeDefault"}}
-    env_vars=[{"name":"LSK_DATASET_URI","value":row["dataset_uri"]},
-              {"name":"LSK_TRAINING_JOB_ID","value":str(row["id"])}]
+    mlflow_uri=os.getenv("MLFLOW_TRACKING_URI","")
+    if not mlflow_uri.startswith("https://"):
+        raise RuntimeError("approved HTTPS MLflow tracking URI is required")
+    env_vars=[
+        {"name":"LSK_DATASET_URI","value":row["dataset_uri"]},
+        {"name":"LSK_TRAINING_JOB_ID","value":str(row["id"])},
+        {"name":"LSK_TENANT_ID","value":tenant},
+        {"name":"LSK_MODEL_NAME","value":row["name"]},
+        {"name":"LSK_EVALUATION_REF","value":str(row["id"])},
+        {"name":"TRAINING_DATASET_BUCKET","value":os.environ["TRAINING_DATASET_BUCKET"]},
+        {"name":"AWS_REGION","value":os.environ["AWS_REGION"]},
+        {"name":"LSK_GPU_PER_WORKER","value":str(gpu)},
+        {"name":"MLFLOW_TRACKING_URI","value":mlflow_uri},
+        {"name":"MLFLOW_TRACKING_TOKEN","valueFrom":{
+            "secretKeyRef":{"name":"ml-training-mlflow","key":"token"}}},
+    ]
     def pod(container, cpu, mem, needs_gpu):
         res={"requests":{"cpu":cpu,"memory":mem},"limits":{"cpu":cpu,"memory":mem}}
         if needs_gpu:
@@ -50,6 +64,12 @@ def job_manifest(row):
                              "env":env_vars,"resources":res,
                              "securityContext":{"allowPrivilegeEscalation":False,
                                                 "capabilities":{"drop":["ALL"]}}}]}
+        if container=="ray-head":
+            spec["containers"][0]["ports"]=[
+                {"name":"gcs-server","containerPort":6379},
+                {"name":"dashboard","containerPort":8265},
+                {"name":"client","containerPort":10001},
+            ]
         if needs_gpu:
             spec["nodeSelector"]={"lsk.ai/gpu":"true"}
             spec["tolerations"]=[{"key":"lsk.ai/gpu","operator":"Equal",

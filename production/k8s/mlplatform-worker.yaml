@@ -34,6 +34,8 @@ spec:
               valueFrom: {secretKeyRef: {name: ml-database, key: url}}
             - name: TENANT_NAMESPACE_MAP
               valueFrom: {configMapKeyRef: {name: ml-platform-config, key: tenant_namespace_map}}
+            - name: MLFLOW_TRACKING_URI
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: mlflow_uri}}
             - name: TRAINING_DATASET_BUCKET
               valueFrom: {configMapKeyRef: {name: ml-platform-config, key: training_dataset_bucket}}
             - name: RAY_RUNTIME_VERSION

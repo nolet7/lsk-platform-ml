@@ -13,6 +13,7 @@ def setup(monkeypatch):
     monkeypatch.setenv("AWS_REGION","us-east-1")
     monkeypatch.setenv("AWS_ACCOUNT_ID","123456789012")
     monkeypatch.setenv("RAY_RUNTIME_VERSION","2.52.0")
+    monkeypatch.setenv("MLFLOW_TRACKING_URI","https://mlflow.example.net")
 
 def row(gpu=0,uri="s3://lsk-datasets/tenant-a/datasets/version-1"):
     return {"id":str(uuid4()),"tenant_id":"tenant-a","environment":"stage",
@@ -24,6 +25,11 @@ def test_cpu_rayjob_is_scoped_and_fixed_command():
     assert obj["apiVersion"]=="ray.io/v1"
     assert obj["spec"]["entrypoint"]=="python -m lsk_training.entrypoint"
     assert obj["spec"]["shutdownAfterJobFinishes"] is True
+    pod=obj["spec"]["rayClusterSpec"]["headGroupSpec"]["template"]["spec"]
+    env={e["name"]:e for e in pod["containers"][0]["env"]}
+    assert env["LSK_TENANT_ID"]["value"]=="tenant-a"
+    assert env["LSK_EVALUATION_REF"]["value"]
+    assert env["MLFLOW_TRACKING_TOKEN"]["valueFrom"]["secretKeyRef"]["name"]=="ml-training-mlflow"
     assert obj["spec"]["rayClusterSpec"]["workerGroupSpecs"][0]["replicas"]==2
 
 def test_gpu_limits_and_node_placement():
