@@ -83,7 +83,7 @@ module "eks" {
   vpc_id                   = module.vpc.vpc_id
   subnet_ids               = module.vpc.private_subnets
   control_plane_subnet_ids = module.vpc.private_subnets
-  eks_managed_node_groups = {
+  eks_managed_node_groups = merge({
     general = {
       ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = var.node_instance_types
@@ -93,7 +93,28 @@ module "eks" {
       capacity_type  = "ON_DEMAND"
       labels         = { workload = "api" }
     }
-  }
+  }, var.enable_gpu_nodes ? {
+    gpu = {
+      ami_type       = "AL2023_x86_64_NVIDIA"
+      instance_types = var.gpu_instance_types
+      min_size       = 0
+      desired_size   = 0
+      max_size       = var.gpu_node_max
+      capacity_type  = "ON_DEMAND"
+      labels = {
+        "lsk.ai/gpu" = "true"
+        workload     = "training"
+      }
+      taints = {
+        gpu = {
+          key    = "lsk.ai/gpu"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
+  } : {})
+
   tags = local.tags
 }
 

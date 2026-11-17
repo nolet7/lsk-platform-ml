@@ -23,3 +23,11 @@ Architecture dependencies:
 **Not proven:** no GPU nodes, operator or Ray jobs have been provisioned in AWS
 during this session. The code implements a supported scheduling contract but
 cannot claim GPU training success until cluster and workload acceptance tests.
+
+The AWS infrastructure module now includes an optional GPU managed node group
+(`enable_gpu_nodes`, `gpu_instance_types`, `gpu_node_max`). It uses the
+AL2023 NVIDIA AMI, `lsk.ai/gpu=true` node label and NoSchedule taint.
+GPU node count starts at zero; an authorized cluster autoscaler/Karpenter
+strategy is required for scale-from-zero. Device-plugin installation and
+GPU capability verification remain separate privileged steps. See
+[official EKS AI/ML setup](https://docs.aws.amazon.com/eks/latest/userguide/ml-cluster-setup-tf.html).
