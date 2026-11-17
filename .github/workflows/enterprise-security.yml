@@ -1,0 +1,60 @@
+name: Enterprise ML platform security gates
+on:
+  pull_request:
+    branches: [production, feature/ml-deployment-platform-control-plane]
+  push:
+    branches: [feature/enterprise-ml-platform-completion]
+permissions:
+  contents: read
+jobs:
+  dependency-and-source:
+    name: Dependency and source review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pip install pip-audit bandit
+      - name: Scan Python source for high severity security issues
+        run: bandit -r mlplatform app sdk -ll -q
+      - name: Audit resolved Python requirements
+        run: pip-audit -r requirements.txt --progress-spinner off
+  container-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: control-plane, dockerfile: mlplatform/Dockerfile}
+          - {name: worker, dockerfile: mlplatform/worker.Dockerfile}
+          - {name: inference-example, dockerfile: examples/sklearn_inference/Dockerfile}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image for scanning
+        run: docker build --pull -f "${{ matrix.dockerfile }}" -t "lsk-ml-${{ matrix.name }}:security" .
+      - name: Scan image vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "lsk-ml-${{ matrix.name }}:security"
+          format: table
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: false
+      - name: Emit CycloneDX image SBOM
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "lsk-ml-${{ matrix.name }}:security"
+          format: cyclonedx
+          output: image-sbom.cdx.json
+          exit-code: "0"
+      - name: Archive bill of materials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "sbom-${{ matrix.name }}"
+          path: image-sbom.cdx.json
+          if-no-files-found: warn

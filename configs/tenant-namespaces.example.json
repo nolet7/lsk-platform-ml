@@ -1,5 +1,4 @@
 {
-  "_warning": "EXAMPLE ONLY. Replace with approved tenant and namespace mapping before bootstrap.",
   "tenant-a": {
     "stage": "tenant-a-stage",
     "production": "tenant-a-prod"

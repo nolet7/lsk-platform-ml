@@ -1,5 +1,4 @@
 {
-  "_warning": "EXAMPLE ONLY. This is not an authorized evaluation policy.",
   "tenant-a": {
     "blade-quality": {"metric": "validation_auc", "operator": "gte", "threshold": 0.85},
     "demand-forecast": {"metric": "validation_rmse", "operator": "lte", "threshold": 5.0}

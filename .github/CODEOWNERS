@@ -1,0 +1,6 @@
+# Repository ownership and branch review
+* @nolet7
+/production/terraform/ @nolet7
+/production/db/ @nolet7
+/mlplatform/ @nolet7
+/.github/workflows/ @nolet7
