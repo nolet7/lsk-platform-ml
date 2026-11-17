@@ -61,7 +61,16 @@ def build(mapping):
                                      "max":{"cpu":"4","memory":"8Gi"}}]}},
                 {"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy",
                  "metadata":{"name":"tenant-default-deny","namespace":namespace},
-                 "spec":{"podSelector":{},"policyTypes":["Ingress","Egress"]}}
+                 "spec":{"podSelector":{},"policyTypes":["Ingress","Egress"]}},
+                {"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy",
+                 "metadata":{"name":"allow-model-gateway","namespace":namespace},
+                 "spec":{"podSelector":{"matchLabels":{"lsk.ai/managed-by":"ml-platform"}},
+                         "policyTypes":["Ingress"],
+                         "ingress":[{"from":[{
+                             "namespaceSelector":{"matchLabels":{
+                                "kubernetes.io/metadata.name":"ml-quality"}},
+                             "podSelector":{"matchLabels":{"app":"ml-platform-api"}}}],
+                             "ports":[{"protocol":"TCP","port":8080}]}]}}
             ])
     return {"apiVersion":"v1","kind":"List","items":items}
 

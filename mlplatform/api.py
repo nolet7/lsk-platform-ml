@@ -10,7 +10,7 @@ from mlplatform.manifest import validate_image, target_namespace
 from mlplatform.schemas import ModelRegistration, Approval, DeploymentRequest, RollbackRequest, TrainingRequest
 from mlplatform.store import Store
 from mlplatform.mlflow_gate import verify_evidence
-from mlplatform import controller, training
+from mlplatform import controller, training, inference
 
 app = FastAPI(title="LSK ML Deployment Platform", version="1.0.0")
 store = Store()
@@ -190,3 +190,16 @@ def training_status(job_id:str,ctx:dict=Depends(identity)):
         except Exception as exc:
             raise HTTPException(502,"RayJob status unavailable") from exc
     return row
+
+@app.post("/v1/platform/inference/{name}")
+async def invoke_model(name:str,request:Request,environment:str,ctx:dict=Depends(identity)):
+    check(ctx,"ml:infer")
+    if request.headers.get("content-type","").split(";")[0].strip()!="application/json":
+        raise HTTPException(415,"application/json required")
+    declared=request.headers.get("content-length")
+    if declared and (not declared.isdigit() or int(declared)>inference.MAX_REQUEST_BYTES):
+        raise HTTPException(413,"prediction request exceeds payload limit")
+    body=await request.body()
+    from starlette.concurrency import run_in_threadpool
+    return await run_in_threadpool(inference.serve,store,ctx["tenant"],ctx["actor"],
+                                   name,environment,body)

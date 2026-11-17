@@ -53,6 +53,10 @@ class MLPlatformClient:
     def training_status(self, job_id):
         return self._request("GET",f"/v1/platform/training-jobs/{job_id}")
 
+    def predict(self, name, payload, environment="production"):
+        return self._request("POST",f"/v1/platform/inference/{name}",
+                             params={"environment":environment},json=payload)
+
     def close(self):
         self.client.close()
 

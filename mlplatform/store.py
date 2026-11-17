@@ -238,3 +238,10 @@ class Store:
             cur.execute("""INSERT INTO platform_audit (tenant_id,actor,event,resource_id)
                            VALUES (%s,%s,%s,%s)""",
                         (tenant,actor,"training_"+row["state"],job_id))
+
+    def record_inference(self,tenant,actor,deployment_id,status,latency_ms):
+        with connect() as conn,conn.cursor() as cur:
+            cur.execute("""INSERT INTO platform_inference_events
+                (tenant_id,actor,deployment_id,http_status,latency_ms)
+                VALUES (%s,%s,%s,%s,%s)""",
+                (tenant,actor,deployment_id,status,latency_ms))
