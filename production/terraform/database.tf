@@ -20,11 +20,16 @@ resource "aws_vpc_security_group_ingress_rule" "postgres_from_nodes" {
 resource "aws_db_instance" "metadata" {
   identifier                  = "${local.name}-metadata"
   engine                      = "postgres"
+  engine_version              = var.db_engine_version
+  parameter_group_name        = aws_db_parameter_group.ml_tls.name
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
   instance_class              = var.db_instance_class
   allocated_storage           = 50
   max_allocated_storage       = 200
   storage_type                = "gp3"
   storage_encrypted           = true
+  kms_key_id                  = aws_kms_key.ml.arn
+  master_user_secret_kms_key_id = aws_kms_key.ml.arn
   db_name                     = "mlplatform"
   username                    = "mladmin"
   manage_master_user_password = true
@@ -47,4 +52,23 @@ variable "db_instance_class" {
 output "database_endpoint" {
   value     = aws_db_instance.metadata.address
   sensitive = true
+}
+
+resource "aws_db_parameter_group" "ml_tls" {
+  name_prefix = "${local.name}-tls-"
+  family      = "postgres${split(".", var.db_engine_version)[0]}"
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
+  }
+  tags = local.tags
+  lifecycle { create_before_destroy = true }
+}
+variable "db_engine_version" {
+  type        = string
+  description = "Approved PostgreSQL major engine version available in target AWS region."
+  validation {
+    condition     = can(regex("^[0-9]+(\\.[0-9]+)?$",var.db_engine_version))
+    error_message = "Expected PostgreSQL engine version number."
+  }
 }

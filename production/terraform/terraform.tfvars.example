@@ -12,3 +12,9 @@ eks_platform_admin_role_arn = "arn:aws:iam::123456789012:role/lsk-ml-prod-bootst
 enable_gpu_nodes = false
 gpu_instance_types = ["g6.xlarge"]
 gpu_node_max = 4
+
+# Values must be replaced by approved enterprise configuration.
+db_engine_version = "16"
+monthly_budget_usd = 500
+budget_notification_emails = ["replace-with-finops@example.com"]
+alarm_sns_topic_arn = "arn:aws:sns:us-east-1:123456789012:replace-with-oncall-topic"

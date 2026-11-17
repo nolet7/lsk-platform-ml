@@ -2,7 +2,10 @@ resource "aws_ecr_repository" "ml_platform_api" {
   name                 = "${local.name}-control-plane"
   image_tag_mutability = "IMMUTABLE"
   image_scanning_configuration { scan_on_push = true }
-  encryption_configuration { encryption_type = "AES256" }
+  encryption_configuration {
+    encryption_type = "KMS"
+    kms_key         = aws_kms_key.ml.arn
+  }
   tags = local.tags
 }
 output "ml_platform_ecr_repository" {
@@ -13,7 +16,10 @@ resource "aws_ecr_repository" "ml_platform_worker" {
   name                 = "${local.name}-worker"
   image_tag_mutability = "IMMUTABLE"
   image_scanning_configuration { scan_on_push = true }
-  encryption_configuration { encryption_type = "AES256" }
+  encryption_configuration {
+    encryption_type = "KMS"
+    kms_key         = aws_kms_key.ml.arn
+  }
   tags = local.tags
 }
 output "ml_platform_worker_ecr_repository" {

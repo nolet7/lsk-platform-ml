@@ -47,9 +47,28 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "ml_artifacts" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "aws:kms"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.ml.arn
     }
 
     bucket_key_enabled = true
   }
+}
+
+resource "aws_s3_bucket_policy" "require_tls" {
+  bucket = aws_s3_bucket.ml_artifacts.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid = "DenyUnencryptedTransport"
+      Effect = "Deny"
+      Principal = "*"
+      Action = "s3:*"
+      Resource = [
+        aws_s3_bucket.ml_artifacts.arn,
+        "${aws_s3_bucket.ml_artifacts.arn}/*"
+      ]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
 }
