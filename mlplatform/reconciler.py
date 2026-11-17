@@ -9,6 +9,10 @@ import os
 import signal
 import time
 from mlplatform import controller, training
+from prometheus_client import Counter, start_http_server
+
+WORKER_OPERATIONS=Counter('lsk_ml_platform_worker_operations_total',
+                          'Deployment and RayJob reconciliation results', ['type','result'])
 from mlplatform.store import Store
 
 LOG = logging.getLogger("mlplatform.reconciler")
@@ -27,17 +31,21 @@ def run_once(store=None):
     try:
         if db.has_newer_revision(job["tenant_id"], job["name"], job["environment"], job["revision"]):
             db.complete(job["tenant_id"], actor, job["id"], job["claim_token"], "superseded")
+            WORKER_OPERATIONS.labels("deployment","superseded").inc()
             return True
         controller.apply(job["tenant_id"], job["name"], job["environment"],
                          job["image"], job["replicas"], job["revision"])
         db.complete(job["tenant_id"], actor, job["id"], job["claim_token"], "submitted")
+        WORKER_OPERATIONS.labels("deployment","submitted").inc()
     except Exception:
         LOG.exception("reconciliation failed for id=%s", job["id"])
         db.retry(job["tenant_id"], actor, job["id"], job["claim_token"])
+        WORKER_OPERATIONS.labels("deployment","retry").inc()
     return True
 
 def main():
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+    start_http_server(int(os.getenv("WORKER_METRICS_PORT","9100")),"0.0.0.0")
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     while running:
@@ -59,7 +67,9 @@ def run_training_once(db):
     try:
         training.apply_training(job)
         db.finish_training(job["tenant_id"],actor,str(job["id"]),job["claim_token"],"submitted")
+        WORKER_OPERATIONS.labels("rayjob","submitted").inc()
     except Exception:
         LOG.exception("RayJob reconciliation failed for id=%s",job["id"])
         db.retry_training(job["tenant_id"],actor,str(job["id"]),job["claim_token"])
+        WORKER_OPERATIONS.labels("rayjob","retry").inc()
     return True

@@ -23,3 +23,16 @@ Use a separate isolated AWS environment; restore encrypted PostgreSQL from manag
 
 ## Important
 The production AWS account has not been provisioned or verified in this ChatGPT session. This runbook is not an incident log and does not assert successful tests.
+
+## Ray/GPU & worker monitoring
+
+A dedicated worker process exposes Prometheus metrics on its internal `metrics`
+port. `production/k8s/mlplatform-monitoring.yaml` defines optional
+ServiceMonitor and alert rules for deployment/Ray retries and unavailable workers.
+`mlplatform/reconciler.py` also emits structured exception messages without
+including model payload data. Install the Prometheus Operator and confirm
+ServiceMonitor selection and alert routing before applying the resources.
+
+Worker must receive `TRAINING_DATASET_BUCKET` and `RAY_RUNTIME_VERSION` from
+approved configuration. Rate and cost per tenant must be measured separately,
+not inferred from HTTP request metrics.

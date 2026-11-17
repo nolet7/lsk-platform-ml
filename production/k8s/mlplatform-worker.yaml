@@ -19,6 +19,14 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: worker
+          ports:
+            - {name: metrics, containerPort: 9100}
+          readinessProbe:
+            tcpSocket: {port: metrics}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: metrics}
+            periodSeconds: 20
           image: REPLACE_WITH_APPROVED_ECR_IMAGE_DIGEST
           env:
             - {name: APP_ENV, value: production}
@@ -26,6 +34,10 @@ spec:
               valueFrom: {secretKeyRef: {name: ml-database, key: url}}
             - name: TENANT_NAMESPACE_MAP
               valueFrom: {configMapKeyRef: {name: ml-platform-config, key: tenant_namespace_map}}
+            - name: TRAINING_DATASET_BUCKET
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: training_dataset_bucket}}
+            - name: RAY_RUNTIME_VERSION
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: ray_runtime_version}}
             - name: AWS_ACCOUNT_ID
               valueFrom: {configMapKeyRef: {name: ml-platform-config, key: aws_account_id}}
             - name: AWS_REGION
@@ -37,3 +49,15 @@ spec:
           resources:
             requests: {cpu: 100m, memory: 256Mi}
             limits: {cpu: "1", memory: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-platform-worker-metrics
+  namespace: ml-quality
+  labels: {app: ml-platform-worker}
+spec:
+  type: ClusterIP
+  selector: {app: ml-platform-worker}
+  ports:
+    - {name: metrics, port: 9100, targetPort: metrics}
