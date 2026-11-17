@@ -1,0 +1,26 @@
+name: Enterprise lifecycle verification
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/bulletin-1-enterprise-lifecycle
+jobs:
+  poc-and-policy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
+      - name: Verify demonstration cannot masquerade as approved release
+        run: |
+          if python scripts/verify_phase_gates.py evidence/phase-gates.example.json; then
+            echo "ERROR: example evidence was accepted as a release gate"
+            exit 1
+          fi
+          echo "Expected: example evidence is NOT READY"
