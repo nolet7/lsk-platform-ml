@@ -73,13 +73,15 @@ class Store:
         with connect() as conn, conn.cursor() as cur:
             cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (lock_key,))
             cur.execute(
-                """SELECT image,approved_by FROM platform_models
+                """SELECT image,name,approved_by FROM platform_models
                    WHERE tenant_id=%s AND id=%s FOR SHARE""", (tenant,model_id))
             model = cur.fetchone()
             if not model:
                 raise LookupError("model not found")
             if not model["approved_by"]:
                 raise PermissionError("model approval required before deployment")
+            if model["name"] != name:
+                raise ValueError("deployment name must match registered model name")
             cur.execute(
                 """SELECT COALESCE(MAX(revision),0)+1 AS revision FROM platform_deployments
                    WHERE tenant_id=%s AND name=%s AND environment=%s""",
@@ -102,3 +104,64 @@ class Store:
                         (state,tenant,deployment_id))
             cur.execute("INSERT INTO platform_audit (tenant_id,actor,event,resource_id) VALUES (%s,%s,%s,%s)",
                         (tenant,actor,"deployment_"+state,deployment_id))
+
+    def claim(self):
+        """Atomically lease the oldest runnable job. Claim token fences stale workers."""
+        with connect() as conn, conn.cursor() as cur:
+            cur.execute("""
+              WITH candidate AS (
+                SELECT id FROM platform_deployments
+                WHERE ((state IN ('pending','retry') AND next_attempt_at <= now())
+                    OR (state = 'reconciling' AND lease_until < now()))
+                ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 1
+              )
+              UPDATE platform_deployments AS d SET state='reconciling',
+                lease_until=now()+interval '5 minutes',
+                claim_token=gen_random_uuid(),updated_at=now()
+              FROM candidate WHERE d.id=candidate.id
+              RETURNING d.id,d.tenant_id,d.name,d.environment,d.revision,d.image,
+                        d.replicas,d.claim_token
+            """)
+            row=cur.fetchone()
+            return dict(row) if row else None
+
+    def has_newer_revision(self, tenant, name, environment, revision):
+        with connect() as conn, conn.cursor() as cur:
+            cur.execute("""SELECT EXISTS(SELECT 1 FROM platform_deployments
+                         WHERE tenant_id=%s AND name=%s AND environment=%s
+                           AND revision>%s AND state IN
+                              ('pending','retry','reconciling','submitted')) AS newer""",
+                        (tenant,name,environment,revision))
+            return cur.fetchone()["newer"]
+
+    def complete(self, tenant, actor, deployment_id, claim_token, state):
+        if state not in ("submitted","superseded"):
+            raise ValueError("invalid terminal reconciliation state")
+        with connect() as conn, conn.cursor() as cur:
+            cur.execute("""UPDATE platform_deployments
+                SET state=%s,lease_until=NULL,claim_token=NULL,updated_at=now()
+                WHERE id=%s AND tenant_id=%s AND state='reconciling'
+                  AND claim_token=%s RETURNING id""",
+                (state,deployment_id,tenant,claim_token))
+            if not cur.fetchone():
+                raise RuntimeError("reconciliation lease expired or moved")
+            cur.execute("""INSERT INTO platform_audit (tenant_id,actor,event,resource_id)
+                           VALUES (%s,%s,%s,%s)""",
+                        (tenant,actor,"deployment_"+state,deployment_id))
+
+    def retry(self, tenant, actor, deployment_id, claim_token):
+        with connect() as conn, conn.cursor() as cur:
+            cur.execute("""UPDATE platform_deployments
+                SET retry_count=retry_count+1,
+                    state=CASE WHEN retry_count+1>=5 THEN 'failed' ELSE 'retry' END,
+                    next_attempt_at=now()+(make_interval(secs=>LEAST(300,POWER(2,retry_count+1)::integer*5))),
+                    lease_until=NULL,claim_token=NULL,updated_at=now()
+                WHERE id=%s AND tenant_id=%s AND state='reconciling'
+                  AND claim_token=%s
+                RETURNING state""", (deployment_id,tenant,claim_token))
+            row=cur.fetchone()
+            if not row:
+                raise RuntimeError("reconciliation lease expired or moved")
+            cur.execute("""INSERT INTO platform_audit (tenant_id,actor,event,resource_id)
+                           VALUES (%s,%s,%s,%s)""",
+                        (tenant,actor,"deployment_"+row["state"],deployment_id))

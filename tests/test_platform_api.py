@@ -45,7 +45,7 @@ def test_platform_registration_approval_and_deploy(monkeypatch):
         response=client.post("/v1/platform/deployments",
                              json={"name":"blade-quality","model_id":"m1","environment":"production","replicas":3})
         assert response.status_code==202
-        assert response.json()["state"]=="submitted"
+        assert response.json()["state"]=="pending"
         assert ("prepare","tenant-a","a-prod") in fake.calls
         assert client.get("/v1/platform/deployments/blade-quality?environment=production").status_code==200
     finally:

@@ -26,14 +26,14 @@ def run_once(store=None):
     actor = "ml-platform-reconciler"
     try:
         if db.has_newer_revision(job["tenant_id"], job["name"], job["environment"], job["revision"]):
-            db.complete(job["tenant_id"], actor, job["id"], "superseded")
+            db.complete(job["tenant_id"], actor, job["id"], job["claim_token"], "superseded")
             return True
         controller.apply(job["tenant_id"], job["name"], job["environment"],
                          job["image"], job["replicas"], job["revision"])
-        db.complete(job["tenant_id"], actor, job["id"], "submitted")
+        db.complete(job["tenant_id"], actor, job["id"], job["claim_token"], "submitted")
     except Exception:
         LOG.exception("reconciliation failed for id=%s", job["id"])
-        db.retry(job["tenant_id"], actor, job["id"])
+        db.retry(job["tenant_id"], actor, job["id"], job["claim_token"])
     return True
 
 def main():

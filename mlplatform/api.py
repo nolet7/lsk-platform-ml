@@ -116,15 +116,9 @@ def deploy(body: DeploymentRequest, ctx: dict = Depends(identity)):
     except ValueError as exc:
         raise HTTPException(422,str(exc)) from exc
 
-    try:
-        controller.apply(ctx["tenant"],body.name,body.environment,
-                         row["image"],body.replicas,row["revision"])
-    except Exception as exc:
-        store.mark(ctx["tenant"],ctx["actor"],row["id"],"failed")
-        raise HTTPException(502,"Kubernetes reconciliation failed; inspect internal logs") from exc
-    store.mark(ctx["tenant"],ctx["actor"],row["id"],"submitted")
-    return {"id":row["id"],"revision":row["revision"],"state":"submitted",
-            "namespace":namespace,"note":"rollout health is not yet verified"}
+    # Request accepted into durable PostgreSQL queue; worker performs reconciliation.
+    return {"id":row["id"],"revision":row["revision"],"state":"pending",
+            "namespace":namespace,"note":"queued; inspect observed health using status API"}
 
 @app.get("/v1/platform/deployments/{name}")
 def status(name: str, environment: str, ctx: dict = Depends(identity)):
@@ -166,12 +160,8 @@ def rollback(name: str, environment: str, body: RollbackRequest,
         namespace=target_namespace(ctx["tenant"],environment)
         row=store.prepare(ctx["tenant"],ctx["actor"],str(target["model_id"]),
                           name,environment,target["replicas"],namespace)
-        controller.apply(ctx["tenant"],name,environment,row["image"],
-                         row["replicas"],row["revision"])
-    except Exception as exc:
-        if "row" in locals():
-            store.mark(ctx["tenant"],ctx["actor"],row["id"],"failed")
-        raise HTTPException(502,"rollback reconciliation failed") from exc
-    store.mark(ctx["tenant"],ctx["actor"],row["id"],"submitted")
+    except (LookupError, ValueError, PermissionError) as exc:
+        raise HTTPException(409,"rollback could not be queued") from exc
+
     return {"id":row["id"],"revision":row["revision"],"rolled_back_to":target["revision"],
-            "state":"submitted","reason":body.reason}
+            "state":"pending","reason":body.reason}
