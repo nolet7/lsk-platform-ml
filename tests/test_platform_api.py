@@ -45,13 +45,13 @@ def test_platform_registration_approval_and_deploy(monkeypatch):
               "evaluation_reference":"approved-eval-123","source_run_id":"run-1","model_artifact_uri":"models:/blade/1"}
         assert client.post("/v1/platform/models",json=body).status_code==201
         assert client.post("/v1/platform/models/m1/approve",json={"reason":"Quality and platform review complete"}).status_code==200
-        assert client.post("/v1/platform/models/m1/revoke",json={"reason":"Model failed quality audit; revoke approval"}).status_code==200
         response=client.post("/v1/platform/deployments",
                              json={"name":"blade-quality","model_id":"m1","environment":"production","replicas":3})
         assert response.status_code==202
         assert response.json()["state"]=="pending"
         assert ("prepare","tenant-a","a-prod") in fake.calls
         assert client.get("/v1/platform/deployments/blade-quality?environment=production").status_code==200
+        assert client.post("/v1/platform/models/m1/revoke",json={"reason":"Model failed quality audit; revoke approval"}).status_code==200
     finally:
         app.dependency_overrides.clear()
 
