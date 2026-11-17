@@ -6,7 +6,7 @@ from production.scripts.render_tenant_bootstrap import build
 def test_api_reader_and_worker_separation():
     manifest=list(yaml.safe_load_all(Path("production/k8s/ml-platform-api.yaml").read_text()))
     api=manifest[0]
-    worker=yaml.safe_load(Path("production/k8s/mlplatform-worker.yaml").read_text())
+    worker=list(yaml.safe_load_all(Path("production/k8s/mlplatform-worker.yaml").read_text()))[0]
     assert api["spec"]["template"]["spec"]["serviceAccountName"]=="ml-platform-reader"
     assert worker["spec"]["template"]["spec"]["serviceAccountName"]=="ml-platform-controller"
 

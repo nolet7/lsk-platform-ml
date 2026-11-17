@@ -60,10 +60,10 @@ resource "aws_s3_bucket_policy" "require_tls" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Sid = "DenyUnencryptedTransport"
-      Effect = "Deny"
+      Sid       = "DenyUnencryptedTransport"
+      Effect    = "Deny"
       Principal = "*"
-      Action = "s3:*"
+      Action    = "s3:*"
       Resource = [
         aws_s3_bucket.ml_artifacts.arn,
         "${aws_s3_bucket.ml_artifacts.arn}/*"

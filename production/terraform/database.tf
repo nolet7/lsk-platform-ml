@@ -18,32 +18,32 @@ resource "aws_vpc_security_group_ingress_rule" "postgres_from_nodes" {
   to_port                      = 5432
 }
 resource "aws_db_instance" "metadata" {
-  identifier                  = "${local.name}-metadata"
-  engine                      = "postgres"
-  engine_version              = var.db_engine_version
-  parameter_group_name        = aws_db_parameter_group.ml_tls.name
+  identifier                      = "${local.name}-metadata"
+  engine                          = "postgres"
+  engine_version                  = var.db_engine_version
+  parameter_group_name            = aws_db_parameter_group.ml_tls.name
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
-  instance_class              = var.db_instance_class
-  allocated_storage           = 50
-  max_allocated_storage       = 200
-  storage_type                = "gp3"
-  storage_encrypted           = true
-  kms_key_id                  = aws_kms_key.ml.arn
-  master_user_secret_kms_key_id = aws_kms_key.ml.arn
-  db_name                     = "mlplatform"
-  username                    = "mladmin"
-  manage_master_user_password = true
-  db_subnet_group_name        = aws_db_subnet_group.ml.name
-  vpc_security_group_ids      = [aws_security_group.database.id]
-  publicly_accessible         = false
-  multi_az                    = true
-  backup_retention_period     = 14
-  deletion_protection         = true
-  skip_final_snapshot         = false
-  final_snapshot_identifier   = "${local.name}-final-snapshot"
-  auto_minor_version_upgrade  = true
-  copy_tags_to_snapshot       = true
-  tags                        = local.tags
+  instance_class                  = var.db_instance_class
+  allocated_storage               = 50
+  max_allocated_storage           = 200
+  storage_type                    = "gp3"
+  storage_encrypted               = true
+  kms_key_id                      = aws_kms_key.ml.arn
+  master_user_secret_kms_key_id   = aws_kms_key.ml.arn
+  db_name                         = "mlplatform"
+  username                        = "mladmin"
+  manage_master_user_password     = true
+  db_subnet_group_name            = aws_db_subnet_group.ml.name
+  vpc_security_group_ids          = [aws_security_group.database.id]
+  publicly_accessible             = false
+  multi_az                        = true
+  backup_retention_period         = 14
+  deletion_protection             = true
+  skip_final_snapshot             = false
+  final_snapshot_identifier       = "${local.name}-final-snapshot"
+  auto_minor_version_upgrade      = true
+  copy_tags_to_snapshot           = true
+  tags                            = local.tags
 }
 variable "db_instance_class" {
   type        = string
@@ -68,7 +68,7 @@ variable "db_engine_version" {
   type        = string
   description = "Approved PostgreSQL major engine version available in target AWS region."
   validation {
-    condition     = can(regex("^[0-9]+(\\.[0-9]+)?$",var.db_engine_version))
+    condition     = can(regex("^[0-9]+(\\.[0-9]+)?$", var.db_engine_version))
     error_message = "Expected PostgreSQL engine version number."
   }
 }
