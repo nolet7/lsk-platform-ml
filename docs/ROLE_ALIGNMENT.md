@@ -1,15 +1,15 @@
-# Blue River — Senior Platform Engineer, ML Infrastructure alignment
+# Role alignment — ML Platform Engineer / FDE / SRE
 
-This simulation is **platform engineering**, not a claim to have developed advanced aerospace computer vision models.
+This independent portfolio simulation demonstrates a **platform for ML model deployment** rather than a production employer-owned system.
 
-| Job capability | Project evidence | Validation needed |
+| Capability | Code evidence | Real-world validation needed |
 |---|---|---|
-| Python platform services / SDK | POC FastAPI services, typed SDK, CLI/training scripts | tests, API contracts |
-| End-to-end ML lifecycle | synthetic data snapshots, training, evaluation, registration target, inference and review | lineage assertions |
-| Cloud and on-prem Kubernetes | EKS landing zone and edge/on-prem design | cluster smoke/DR tests |
-| Distributed training / GPUs | Ray optional pilot jobs, GPU node placement spec | actual GPU cost/throughput runs |
-| Platform developer experience | self-service run contracts, templates and onboarding | task completion metrics |
-| SRE operations | /metrics, SLO, dashboards, alerts, rollback runbook | live load/failure tests |
-| Technical leadership | CTO mandate, ADRs, stage gates, safety risks | stakeholder acceptance |
+| Developer self service | `sdk/platform_client.py`, `mlplatform/api.py` | OIDC-authenticated ML engineer end-to-end workflow |
+| Model governance | `mlplatform/mlflow_gate.py`, `mlplatform/store.py` | Live MLflow run + signed evaluation and separate approver |
+| Kubernetes deployment | `mlplatform/controller.py`, `mlplatform/manifest.py` | Authorized per-tenant EKS rollout and rollback drill |
+| Cloud platform | `production/terraform/` | AWS account plan/apply and security verification |
+| Database and audit | `production/db/002_platform_control_plane.sql` | Applied migration, isolation and backup/restore |
+| Runtime interoperability | `examples/sklearn_inference/` | OCI built and run through API with real traffic |
+| Operations | `production/k8s/`, `docs/enterprise/` | Live SLOs, monitoring, incident and handover signoff |
 
-Avoid reporting production deployment, uptime, throughput, cost savings or GPU benchmarks until executed and independently measured.
+Do not claim commercial deployment or measured availability, cost/MTTR benefit or GPU benchmarks based only on these files.

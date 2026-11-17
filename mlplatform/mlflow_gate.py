@@ -26,6 +26,8 @@ def verify_evidence(tenant: str, body) -> None:
     metrics = {m["key"]:m["value"] for m in data.get("metrics",[]) if "key" in m and "value" in m}
     if tags.get("tenant_id") != tenant or tags.get("evaluation_ref") != body.evaluation_reference:
         raise ValueError("MLflow tenant or evaluation reference mismatch")
+    if tags.get("inference_image") != body.image:
+        raise ValueError("MLflow run must attest exact immutable inference image")
     if not tags.get("dataset_sha256") or not tags.get("git_sha"):
         raise ValueError("MLflow dataset/code lineage tags are required")
     minimum = float(os.getenv("MODEL_MIN_VALIDATION_AUC","0.85"))

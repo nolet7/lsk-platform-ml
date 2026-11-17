@@ -9,11 +9,12 @@ def test_mlflow_gate_verifies_signed_metadata(monkeypatch):
     monkeypatch.setenv("MLFLOW_TRACKING_TOKEN","test-token")
     run="abcd1234"
     body=SimpleNamespace(source_run_id=run,model_artifact_uri=f"runs:/{run}/model",
-                         evaluation_reference="eval-456")
+                         evaluation_reference="eval-456",image="oci-image-digest")
     payload={"run":{"info":{"run_id":run,"status":"FINISHED"},
         "data":{"metrics":[{"key":"validation_auc","value":0.91}],
         "tags":[{"key":"tenant_id","value":"tenant-a"},
                 {"key":"evaluation_ref","value":"eval-456"},
+                {"key":"inference_image","value":"oci-image-digest"},
                 {"key":"dataset_sha256","value":"a"*64},
                 {"key":"git_sha","value":"f"*40}]}}}
     class FakeClient:
