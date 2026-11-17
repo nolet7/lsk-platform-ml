@@ -1,4 +1,4 @@
-name: Production AWS EKS release
+name: Aerospace inference example EKS release (not ML platform)
 on:
   workflow_dispatch:
     inputs:

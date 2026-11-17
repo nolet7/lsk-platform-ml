@@ -1,19 +1,17 @@
-# Example only; requires a configured Argo CD control plane.
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: inspection-ml-production
-  namespace: argocd
-spec:
-  project: regulated-ml
-  source:
-    repoURL: https://github.com/nolet7/lsk-platform-ml.git
-    targetRevision: production
-    path: production/k8s
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: ml-quality
-  syncPolicy:
-    syncOptions:
-      - CreateNamespace=false
-# Deliberately no automated sync until approvals and policy controls are implemented.
+# Deprecated blueprint, intentionally disabled.
+#
+# The old Argo CD Application targeted all files under production/k8s/.
+# That directory contains multiple unrelated resources, unrendered ECR image
+# placeholders, optional Prometheus CRDs and resources requiring bootstrap roles.
+# Syncing it indiscriminately would not create a valid ML deployment platform.
+#
+# Deployment of the ML control plane is currently explicitly gated through:
+# .github/workflows/aws-mlplatform-release.yml
+#
+# Independent model workloads are reconciled by mlplatform/controller.py
+# after model registration, MLflow verification and independent approval.
+#
+# If GitOps becomes the production delivery standard, create an environment-
+# specific rendered overlay, signed immutable artifacts, distinct namespaces,
+# and approval-backed Argo CD Applications. Do not point Argo CD at raw
+# source templates or let it auto-promote unapproved model versions.

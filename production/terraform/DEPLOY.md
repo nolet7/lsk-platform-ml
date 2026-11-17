@@ -36,3 +36,7 @@ This synthetic single-service deployment is not the complete enterprise ML platf
 **Production is NOT VERIFIED until cloud resources, application workload and controls are demonstrated in the authorized account with real evidence.**
 
 One-time bootstrap: a separate cluster-admin identity must run `kubectl apply -f production/k8s/namespace.yaml` after EKS provisioning. The routine CI deployment role is restricted to namespace ml-quality; it only applies `production/k8s/serviceaccount.yaml` within that namespace. Configure `eks_platform_admin_role_arn` separately from `eks_deployer_role_arn`. The release SHA must equal the protected production branch head.
+
+## ML platform, rather than example-model rollout
+
+The workflow `.github/workflows/aws-production-release.yml` deploys the **synthetic aerospace example application only**, not the shared ML deployment control plane. For the actual platform, apply `production/db/002_platform_control_plane.sql` under an approved migration identity, configure tenant namespace/RBAC resources with `production/scripts/render_tenant_bootstrap.py`, and dispatch `.github/workflows/aws-mlplatform-release.yml` with approved GitHub production environment variables/secrets, including `ML_PLATFORM_ECR_REPOSITORY`, `TENANT_NAMESPACE_MAP`, `MODEL_EVALUATION_POLICIES`, `MLFLOW_TRACKING_URI` and `MLFLOW_TRACKING_TOKEN`. Verify real model registration, separate approval, submission and observed health from an authorized OIDC client before go-live. Do not synchronize the obsolete `production/gitops/application.yaml` blueprint.
