@@ -49,3 +49,35 @@ def test_model_registration_approval_queue_and_reconcile(monkeypatch):
             cur.execute("DELETE FROM platform_audit WHERE tenant_id=%s",(tenant,))
             cur.execute("DELETE FROM platform_deployments WHERE tenant_id=%s",(tenant,))
             cur.execute("DELETE FROM platform_models WHERE tenant_id=%s",(tenant,))
+
+def test_training_queue_and_lease_fencing(monkeypatch):
+    dsn=os.environ["DATABASE_URL_TEST"]
+    monkeypatch.setenv("DATABASE_URL",dsn)
+    tenant="training-"+uuid4().hex[:12]
+    store=Store()
+    request=SimpleNamespace(name="gpu-train",environment="stage",
+        image="approved-immutable-training-image",
+        dataset_uri=f"s3://datasets/{tenant}/datasets/d1",
+        workers=2,gpu_per_worker=1)
+    try:
+        created=store.create_training(tenant,"ml-engineer",request,"team-stage")
+        assert created["state"]=="pending"
+        claimed=store.claim_training()
+        assert str(claimed["id"])==created["id"]
+        with pytest.raises(RuntimeError):
+            store.finish_training(tenant,"worker",created["id"],str(uuid4()),"submitted")
+        store.retry_training(tenant,"worker",created["id"],claimed["claim_token"])
+        with psycopg.connect(dsn) as conn,conn.cursor() as cur:
+            cur.execute("UPDATE platform_training_jobs SET next_attempt_at=now() WHERE id=%s",
+                        (created["id"],))
+        retry=store.claim_training()
+        assert str(retry["id"])==created["id"]
+        store.finish_training(tenant,"worker",created["id"],retry["claim_token"],"submitted")
+        actual=store.training_detail(tenant,created["id"])
+        assert actual["state"]=="submitted" and actual["retry_count"]==1
+        with pytest.raises(LookupError):
+            store.training_detail("other-tenant",created["id"])
+    finally:
+        with psycopg.connect(dsn) as conn,conn.cursor() as cur:
+            cur.execute("DELETE FROM platform_audit WHERE tenant_id=%s",(tenant,))
+            cur.execute("DELETE FROM platform_training_jobs WHERE tenant_id=%s",(tenant,))
