@@ -1,0 +1,50 @@
+# Requires Prometheus Operator and ServiceMonitor discovery permission.
+# Network access to /metrics must be restricted to the monitoring namespace at CNI level.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ml-platform-api
+  namespace: ml-quality
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: ml-platform-api
+  namespaceSelector:
+    matchNames: [ml-quality]
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ml-platform-api-alerts
+  namespace: ml-quality
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: ml-platform-api
+      rules:
+        - alert: MLPlatformHighHTTP5xxRate
+          expr: |
+            sum(rate(lsk_ml_platform_http_requests_total{status=~"5.."}[5m]))
+              / clamp_min(sum(rate(lsk_ml_platform_http_requests_total[5m])), 0.001) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: ML platform API 5xx ratio above five percent
+        - alert: MLPlatformHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(lsk_ml_platform_http_request_duration_seconds_bucket[5m]))) > 0.5
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: ML platform API p95 request latency exceeds 500 ms
+# Alert thresholds are candidates and must be load-tested and approved by SRE.

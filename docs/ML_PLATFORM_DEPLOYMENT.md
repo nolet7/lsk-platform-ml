@@ -39,3 +39,7 @@ Environment variables `AWS_ACCOUNT_ID`, `AWS_REGION`, `TENANT_NAMESPACE_MAP`, `M
 ## Known limitations / blockers
 
 **No live cluster, database, MLflow run, production tenant approval, or user traffic has been validated in this project.** Current POC runs locally; platform API tests use mocks for PostgreSQL, MLflow, and Kubernetes. Reconciliation returns desired-state submission; it is not a monitored healthy rollout. There is no GPU training operator, Ray platform, automated image signature validation, deployment canary analysis, secure API ingress, customer ERP/QMS connection or end-to-end disaster recovery evidence. Replace direct secrets with workload identity/External Secrets, implement request idempotency and persistent job-level reconciliation before regulated production. Do not claim production readiness from CI alone.
+
+## Platform telemetry
+
+`/metrics` exposes bounded-cardinality HTTP method/route/status counters and request-duration histograms. `production/k8s/mlplatform-monitoring.yaml` contains Prometheus Operator ServiceMonitor and alert rules. The config is **not** installed automatically: review namespace network policy, scrape permissions, monitoring release selectors and alert routing before deploying in any real cluster. Image-serving traffic and drift require separate workload instrumentation.

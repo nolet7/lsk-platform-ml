@@ -15,6 +15,36 @@ from mlplatform import controller
 app = FastAPI(title="LSK ML Deployment Platform", version="1.0.0")
 store = Store()
 
+import time
+from fastapi import Request
+from fastapi.responses import Response
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+
+PLATFORM_REQUESTS = Counter("lsk_ml_platform_http_requests_total",
+                            "Platform HTTP request count", ["method","route","status"])
+PLATFORM_LATENCY = Histogram("lsk_ml_platform_http_request_duration_seconds",
+                             "Platform request duration in seconds", ["method","route"])
+
+@app.middleware("http")
+async def instrument(request: Request, call_next):
+    start=time.monotonic()
+    try:
+        response=await call_next(request)
+    except Exception:
+        route=getattr(request.scope.get("route"),"path","unknown")
+        PLATFORM_REQUESTS.labels(request.method,route,"500").inc()
+        PLATFORM_LATENCY.labels(request.method,route).observe(time.monotonic()-start)
+        raise
+    route=getattr(request.scope.get("route"),"path","unmatched")
+    PLATFORM_REQUESTS.labels(request.method,route,str(response.status_code)).inc()
+    PLATFORM_LATENCY.labels(request.method,route).observe(time.monotonic()-start)
+    return response
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(),media_type=CONTENT_TYPE_LATEST)
+
+
 def identity(claims: dict = Depends(auth)):
     if os.getenv("APP_ENV") != "production":
         raise HTTPException(503, "platform requires production OIDC")
