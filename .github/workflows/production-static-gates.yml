@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-      - run: terraform -chdir=production/terraform fmt -check
+      - run: terraform -chdir=production/terraform fmt -diff -check
       - run: terraform -chdir=production/terraform init -backend=false
       - run: terraform -chdir=production/terraform validate
 # No deploy job by design. Do not enable GitOps auto-sync until production authorization.
