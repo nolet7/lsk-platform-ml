@@ -1,29 +1,55 @@
-# LSK Platform ML — Aerospace Repair ML Infrastructure
+# LSK Enterprise ML Infrastructure Platform — Aerospace Repair Operations
 
-> **Independent portfolio simulation.** Inspired by aerospace component repair workflows at companies such as Chromalloy. This project is **not** a Chromalloy-owned system, and uses synthetic data only. No customer, export-controlled, proprietary, or production data.
+**Independent portfolio simulation using synthetic data.** This repository is not a Chromalloy system and does not establish that a production platform was deployed for any employer. Model output is decision support only; qualified inspectors retain final disposition authority.
 
-## CTO mandate
-Provide one governed, self-service ML platform for Quality Engineering, Repair Engineering, Data Science, and Platform/SRE teams. Start from existing ERP/MRO repair orders, inspection imaging and engineering quality workflows. Add reproducible datasets, experiment tracking, model registration, batch and online inference, and auditable human review without granting models authority to accept or reject flight-critical hardware.
+## Business outcome and CTO mandate
+The fictional CTO has commissioned a shared, secure, self-service ML platform for aerospace inspection triage. Replace fragmented, manually assembled inspection datasets and one-off model deployment with traceable training, governed promotion, human-reviewed inference, operational accountability, and a repeatable POC → pilot → production handover process.
 
-Business scenario: aerospace turbine component inspection triage. Simulated repair orders and synthetic inspection images flow through ingestion and labeling, distributed training, review of model artifacts, and GPU-ready Kubernetes inference. Model predictions **assist** qualified inspectors; final disposition stays in the existing quality management workflow.
+**In scope:** synthetic ERP/MRO and QMS integration, data lineage, Python/FastAPI platform API and SDK, reproducible training and evaluation, reference MLflow/Ray/EKS/on-prem integration, approval and audit boundaries, observability, cost controls and disaster recovery readiness.
+**Out of scope:** automated airworthiness disposition, use of proprietary/export-controlled data, and claims of real-company production deployments.
 
-## Phases / branches
-- [poc](../../tree/poc): runnable local legacy MRO/quality simulator plus ML experiment/inference, contract and isolation tests.
-- [pilot](../../tree/pilot): adds infrastructure manifests, workflow orchestration, registry, approval gates and team onboarding.
-- [production](../../tree/production): target multi-environment AWS/EKS hybrid architecture with GitOps, policy, SRE runbooks and promotion gates. **Blueprint only until deployed and validated.**
-- [main](../../tree/main): CTO charter, reference architecture, ADRs and program delivery contract.
+## User journey
+1. Quality engineer opens a synthetic repair order and inspection in the legacy simulator.
+2. ML engineer creates a reproducible dataset and trains a synthetic classifier with `python -m ml.train`.
+3. Platform API serves an approved local POC artifact through `POST /v1/predictions`; it records the prediction, never a part acceptance.
+4. Qualified simulated reviewer records disposition through `POST /v1/reviews`. Duplicate decisions are rejected.
+5. Platform engineer checks service metrics and tests; pilot/production targets add governed registry, OIDC, GPU jobs, approval gates, GitOps and on-call operations.
+6. Delivery lead records evidence and obtains explicit phase signoffs before promoting any environment.
 
-## End-to-end flow
-Repair order (synthetic ERP/MRO) → inspection image metadata → approved dataset snapshot → training job → MLflow experiment/model candidate → evaluation gates → human quality/platform approval → versioned inference service → inspector work queue → recorded human disposition → model monitoring and retraining triggers.
+## Branches
+- `poc`: runnable synthetic Python/FastAPI POC, SDK, training and contract tests.
+- `pilot`: pilot manifests and MLflow/Ray integration design; not proof of an operational pilot.
+- `production`: gated AWS/EKS/hybrid target blueprint; **not deployed**.
+- `feature/bulletin-1-enterprise-lifecycle`: integrated lifecycle-management upgrade plus runnable evidence gate (based on `production`).
+- `main`: original executive charter/reference materials.
 
-## Engineering principles
-Python/FastAPI, typed SDK, versioned APIs; MLflow for experiment/registry; Ray Jobs for scale-out option; Kubernetes/EKS as the common runtime; S3-compatible object storage; PostgreSQL for transactional metadata; OpenTelemetry + Prometheus/Grafana; least-privilege and network boundaries; GitHub Actions gates; Terraform + Helm/Argo CD promotion. Use synthetic data, pin dependencies, never store credentials in Git.
+## Run the implemented POC
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m ml.train
+python -m pytest -q
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+On Windows use `.venv\Scripts\activate`. The POC uses a demo key; it is **not** suitable for exposure on a public network.
 
-## Business and operational safety
-- Human approval remains mandatory for all quality and airworthiness decisions.
-- Predictions must never mutate ERP/QMS disposition records directly.
-- Export-controlled and customer-proprietary data are prohibited from this public repository.
-- The pilot/production environments are *designed*, not claimed deployed.
-- No performance improvements or savings are claimed without measured evidence.
+## Enterprise delivery evidence
+- [CTO charter](docs/CTO_MANDATE.md) and [Bulletin 1 traceability](docs/BULLETIN_1_TRACEABILITY.md)
+- [Stakeholders and requirements](docs/enterprise/REQUIREMENTS_AND_DISCOVERY.md)
+- [Prioritized engineering backlog](docs/enterprise/IMPLEMENTATION_BACKLOG.md)
+- [POC/pilot/production acceptance gates](docs/enterprise/PHASE_GATES.md)
+- [Cutover, runbooks and ownership](docs/enterprise/OPERATIONS_HANDOVER.md)
+- [Risk and decision register](docs/enterprise/RISK_REGISTER.md)
+- [Evidence template](evidence/phase-gates.example.json) and [validator](scripts/verify_phase_gates.py)
 
-See `docs/` for architecture, ADRs, service boundaries, delivery phases, SLOs and acceptance tests.
+Check the example without creating a false deployment claim:
+```bash
+python scripts/verify_phase_gates.py evidence/phase-gates.example.json
+```
+This should report **NOT READY**, as the example has no executed test artifacts or authorized signoffs. Use `--phase poc` (or pilot/production) to check a specific gate. Evidence verification checks completeness and references, not authenticity of external documents.
+
+## Deployment status
+**Implemented:** synthetic legacy workflows, FastAPI inference/review, SDK, deterministic local training and pytest coverage.
+**Designed/partly scaffolded:** Kubernetes namespace isolation, evaluation policies, MLflow, Ray, GPU scheduling, EKS networking, identity, multi-environment promotion, logging, DR, SRE handover.
+**Not verified:** real AWS deployment, real production usage, capacity benchmarks, backup restoration, security assessment, pilot signoffs or operational SLOs. See traceability and backlog for outstanding delivery work.
