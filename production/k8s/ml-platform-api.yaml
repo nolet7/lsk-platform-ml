@@ -1,0 +1,70 @@
+# Separate ML deployment control plane, not the synthetic aerospace inference workload.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-platform-api
+  namespace: ml-quality
+spec:
+  replicas: 3
+  selector:
+    matchLabels: {app: ml-platform-api}
+  template:
+    metadata:
+      labels: {app: ml-platform-api}
+    spec:
+      serviceAccountName: ml-platform-controller
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: api
+          image: REPLACE_WITH_APPROVED_ECR_IMAGE_DIGEST
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: APP_ENV, value: production}
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: ml-database, key: url}}
+            - name: MLFLOW_TRACKING_TOKEN
+              valueFrom: {secretKeyRef: {name: mlflow-auth, key: token}}
+            - name: MLFLOW_TRACKING_URI
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: mlflow_uri}}
+            - name: TENANT_NAMESPACE_MAP
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: tenant_namespace_map}}
+            - name: AWS_ACCOUNT_ID
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: aws_account_id}}
+            - name: AWS_REGION
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: aws_region}}
+            - name: OIDC_ISSUER
+              valueFrom: {configMapKeyRef: {name: ml-auth, key: issuer}}
+            - name: OIDC_AUDIENCE
+              valueFrom: {configMapKeyRef: {name: ml-auth, key: audience}}
+            - name: OIDC_JWKS_URL
+              valueFrom: {configMapKeyRef: {name: ml-auth, key: jwks_url}}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "2", memory: 2Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-platform-api
+  namespace: ml-quality
+  labels: {app: ml-platform-api}
+spec:
+  type: ClusterIP
+  selector: {app: ml-platform-api}
+  ports:
+    - {name: http, port: 80, targetPort: http}
