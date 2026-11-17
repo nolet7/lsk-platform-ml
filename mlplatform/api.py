@@ -133,7 +133,9 @@ def status(name: str, environment: str, ctx: dict = Depends(identity)):
         raise HTTPException(422,"invalid environment")
     try:
         result=store.deployment(ctx["tenant"],name,environment)
-        result["observed"]=controller.observe(ctx["tenant"],name,environment)
+        result["observed"]=controller.observe(ctx["tenant"],name,environment,
+                                               expected_image=result["image"],
+                                               expected_revision=result["revision"])
         return result
     except LookupError as exc:
         raise HTTPException(404,str(exc)) from exc

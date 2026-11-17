@@ -42,7 +42,7 @@ def apply(tenant, name, environment, image, replicas, revision):
     return {"namespace": namespace, "deployment": resource,
             "service": resource, "state": "submitted"}
 
-def observe(tenant, name, environment):
+def observe(tenant, name, environment, expected_image=None, expected_revision=None):
     """Return observed rollout health from Kubernetes, not database submission state."""
     from kubernetes import client, config
     from kubernetes.client.exceptions import ApiException
@@ -63,7 +63,13 @@ def observe(tenant, name, environment):
     available=deployment.status.available_replicas or 0
     observed=deployment.status.observed_generation or 0
     generation=deployment.metadata.generation or 0
-    healthy=desired>0 and available>=desired and observed>=generation
+    container_image=deployment.spec.template.spec.containers[0].image
+    revision=(deployment.spec.template.metadata.annotations or {}).get('lsk.ai/deployment-revision')
+    matches_image=(expected_image is None or container_image==expected_image)
+    matches_revision=(expected_revision is None or revision==str(expected_revision))
+    healthy=(desired>0 and available>=desired and observed>=generation
+             and matches_image and matches_revision)
     return {"healthy":healthy,"state":"healthy" if healthy else "progressing",
             "available_replicas":available,"desired_replicas":desired,
-            "observed_generation":observed,"metadata_generation":generation}
+            "observed_generation":observed,"metadata_generation":generation,
+            "matches_expected_image":matches_image,"matches_expected_revision":matches_revision}
