@@ -9,6 +9,7 @@ from app.security import auth, require_scope
 from mlplatform.manifest import validate_image, target_namespace
 from mlplatform.schemas import ModelRegistration, Approval, DeploymentRequest, RollbackRequest
 from mlplatform.store import Store
+from mlplatform.mlflow_gate import verify_evidence
 from mlplatform import controller
 
 app = FastAPI(title="LSK ML Deployment Platform", version="1.0.0")
@@ -45,9 +46,12 @@ def register(body: ModelRegistration, ctx: dict = Depends(identity)):
     check(ctx,"ml:register")
     try:
         validate_image(body.image)
+        verify_evidence(ctx['tenant'],body)
         return store.register(ctx["tenant"],ctx["actor"],body)
     except ValueError as exc:
         raise HTTPException(422,str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(503,'MLflow verification unavailable') from exc
     except Exception as exc:
         if isinstance(exc, HTTPException): raise
         from psycopg.errors import UniqueViolation

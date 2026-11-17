@@ -32,6 +32,7 @@ def test_platform_registration_approval_and_deploy(monkeypatch):
     monkeypatch.setenv("TENANT_NAMESPACE_MAP",json.dumps({"tenant-a":{"stage":"a-stage","production":"a-prod"}}))
     fake=FakeStore()
     monkeypatch.setattr(api,"store",fake)
+    monkeypatch.setattr(api,"verify_evidence",lambda tenant, body: None)
     monkeypatch.setattr(api.controller,"apply",lambda *args:{"state":"submitted"})
     app.dependency_overrides[auth]=lambda:{"sub":"engineer","tenant_id":"tenant-a","scope":"ml:register ml:approve ml:deploy ml:read ml:rollback"}
     client=TestClient(app)
