@@ -90,6 +90,7 @@ jobs:
         env:
           TENANT_NAMESPACE_MAP: ${{ vars.TENANT_NAMESPACE_MAP }}
           MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+          MODEL_EVALUATION_POLICIES: ${{ vars.MODEL_EVALUATION_POLICIES }}
           MLFLOW_TRACKING_TOKEN: ${{ secrets.MLFLOW_TRACKING_TOKEN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ISSUER: ${{ vars.OIDC_ISSUER }}
@@ -99,10 +100,10 @@ jobs:
           REGION: ${{ vars.AWS_REGION }}
         run: |
           set -euo pipefail
-          test -n "$DATABASE_URL" && test -n "$MLFLOW_TRACKING_TOKEN" && test -n "$TENANT_NAMESPACE_MAP"
-          python -c 'import json,os; assert isinstance(json.loads(os.environ["TENANT_NAMESPACE_MAP"]),dict)'
+          test -n "$DATABASE_URL" && test -n "$MLFLOW_TRACKING_TOKEN" && test -n "$TENANT_NAMESPACE_MAP" && test -n "$MODEL_EVALUATION_POLICIES"
+          python -c 'import json,os; assert isinstance(json.loads(os.environ["TENANT_NAMESPACE_MAP"]),dict); assert isinstance(json.loads(os.environ["MODEL_EVALUATION_POLICIES"]),dict)'
           kubectl apply -f production/k8s/platform-serviceaccount.yaml
-          kubectl -n ml-quality create configmap ml-platform-config --from-literal=tenant_namespace_map="$TENANT_NAMESPACE_MAP" --from-literal=mlflow_uri="$MLFLOW_TRACKING_URI" --from-literal=aws_account_id="$ACCOUNT" --from-literal=aws_region="$REGION" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n ml-quality create configmap ml-platform-config --from-literal=tenant_namespace_map="$TENANT_NAMESPACE_MAP" --from-literal=evaluation_policies="$MODEL_EVALUATION_POLICIES" --from-literal=mlflow_uri="$MLFLOW_TRACKING_URI" --from-literal=aws_account_id="$ACCOUNT" --from-literal=aws_region="$REGION" --dry-run=client -o yaml | kubectl apply -f -
           kubectl -n ml-quality create configmap ml-auth --from-literal=issuer="$ISSUER" --from-literal=audience="$AUDIENCE" --from-literal=jwks_url="$JWKS" --dry-run=client -o yaml | kubectl apply -f -
           kubectl -n ml-quality create secret generic ml-database --from-literal=url="$DATABASE_URL" --dry-run=client -o yaml | kubectl apply -f -
           kubectl -n ml-quality create secret generic mlflow-auth --from-literal=token="$MLFLOW_TRACKING_TOKEN" --dry-run=client -o yaml | kubectl apply -f -

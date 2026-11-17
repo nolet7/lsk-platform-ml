@@ -7,8 +7,9 @@ from mlplatform.mlflow_gate import verify_evidence
 def test_mlflow_gate_verifies_signed_metadata(monkeypatch):
     monkeypatch.setenv("MLFLOW_TRACKING_URI","https://mlflow.example.net")
     monkeypatch.setenv("MLFLOW_TRACKING_TOKEN","test-token")
+    monkeypatch.setenv("MODEL_EVALUATION_POLICIES",'{"tenant-a":{"blade-quality":{"metric":"validation_auc","operator":"gte","threshold":0.85}}}')
     run="abcd1234"
-    body=SimpleNamespace(source_run_id=run,model_artifact_uri=f"runs:/{run}/model",
+    body=SimpleNamespace(name="blade-quality",source_run_id=run,model_artifact_uri=f"runs:/{run}/model",
                          evaluation_reference="eval-456",image="oci-image-digest")
     payload={"run":{"info":{"run_id":run,"status":"FINISHED"},
         "data":{"metrics":[{"key":"validation_auc","value":0.91}],

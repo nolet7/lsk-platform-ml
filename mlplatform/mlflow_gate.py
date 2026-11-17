@@ -30,8 +30,21 @@ def verify_evidence(tenant: str, body) -> None:
         raise ValueError("MLflow run must attest exact immutable inference image")
     if not tags.get("dataset_sha256") or not tags.get("git_sha"):
         raise ValueError("MLflow dataset/code lineage tags are required")
-    minimum = float(os.getenv("MODEL_MIN_VALIDATION_AUC","0.85"))
-    if not 0 <= minimum <= 1:
-        raise RuntimeError("invalid platform evaluation threshold")
-    if not isinstance(metrics.get("validation_auc"), (int,float)) or not minimum <= metrics["validation_auc"] <= 1:
+    import json
+    import math
+    try:
+        config=json.loads(os.environ["MODEL_EVALUATION_POLICIES"])
+        policy=config[tenant][body.name]
+        metric=policy["metric"]
+        operator=policy["operator"]
+        threshold=float(policy["threshold"])
+    except (KeyError,ValueError,TypeError,json.JSONDecodeError) as exc:
+        raise RuntimeError("authorized tenant/model evaluation policy is missing") from exc
+    if not isinstance(metric,str) or not metric or operator not in ("gte","lte") or not math.isfinite(threshold):
+        raise RuntimeError("invalid evaluation policy")
+    score=metrics.get(metric)
+    if not isinstance(score,(int,float)) or not math.isfinite(score):
+        raise ValueError("required model evaluation metric missing")
+    passed=(score >= threshold) if operator=="gte" else (score <= threshold)
+    if not passed:
         raise ValueError("model evaluation threshold failed")

@@ -43,3 +43,7 @@ Environment variables `AWS_ACCOUNT_ID`, `AWS_REGION`, `TENANT_NAMESPACE_MAP`, `M
 ## Platform telemetry
 
 `/metrics` exposes bounded-cardinality HTTP method/route/status counters and request-duration histograms. `production/k8s/mlplatform-monitoring.yaml` contains Prometheus Operator ServiceMonitor and alert rules. The config is **not** installed automatically: review namespace network policy, scrape permissions, monitoring release selectors and alert routing before deploying in any real cluster. Image-serving traffic and drift require separate workload instrumentation.
+
+## Model-specific evaluation policy
+
+Production requires an externally approved `MODEL_EVALUATION_POLICIES` JSON map keyed by tenant ID then model name, for example `{"tenant-a":{"blade-quality":{"metric":"validation_auc","operator":"gte","threshold":0.85},"demand-forecast":{"metric":"validation_rmse","operator":"lte","threshold":5.0}}}`. The client may not choose its own success threshold. Missing/invalid policies fail closed; actual MLflow metrics must satisfy the configured comparator. Configure the same map as the GitHub production environment variable and platform ConfigMap; independently verify it against domain Quality/ML governance. AUC is an example, not a universal metric for every model type.

@@ -33,6 +33,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: ml-platform-config, key: mlflow_uri}}
             - name: TENANT_NAMESPACE_MAP
               valueFrom: {configMapKeyRef: {name: ml-platform-config, key: tenant_namespace_map}}
+            - name: MODEL_EVALUATION_POLICIES
+              valueFrom: {configMapKeyRef: {name: ml-platform-config, key: evaluation_policies}}
             - name: AWS_ACCOUNT_ID
               valueFrom: {configMapKeyRef: {name: ml-platform-config, key: aws_account_id}}
             - name: AWS_REGION
