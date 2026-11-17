@@ -37,6 +37,27 @@ def build(mapping):
                  "subjects":[{"kind":"ServiceAccount","name":"ml-platform-controller","namespace":"ml-quality"}],
                  "roleRef":{"kind":"Role","name":"ml-platform-workload-controller",
                             "apiGroup":"rbac.authorization.k8s.io"}}
+                {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role",
+                 "metadata":{"name":"ml-platform-read-only","namespace":namespace},
+                 "rules":[{"apiGroups":["apps"],"resources":["deployments"],"verbs":["get"]}]},
+                {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"RoleBinding",
+                 "metadata":{"name":"ml-platform-reader","namespace":namespace},
+                 "subjects":[{"kind":"ServiceAccount","name":"ml-platform-reader","namespace":"ml-quality"}],
+                 "roleRef":{"kind":"Role","name":"ml-platform-read-only",
+                            "apiGroup":"rbac.authorization.k8s.io"}},
+                {"apiVersion":"v1","kind":"ResourceQuota",
+                 "metadata":{"name":"ml-serving-quota","namespace":namespace},
+                 "spec":{"hard":{"requests.cpu":"12","requests.memory":"32Gi",
+                                  "limits.cpu":"24","limits.memory":"64Gi",
+                                  "pods":"36","services":"12"}}},
+                {"apiVersion":"v1","kind":"LimitRange",
+                 "metadata":{"name":"ml-serving-limits","namespace":namespace},
+                 "spec":{"limits":[{"type":"Container","defaultRequest":{"cpu":"250m","memory":"512Mi"},
+                                     "default":{"cpu":"2","memory":"2Gi"},
+                                     "max":{"cpu":"4","memory":"8Gi"}}]}},
+                {"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy",
+                 "metadata":{"name":"tenant-default-deny","namespace":namespace},
+                 "spec":{"podSelector":{},"policyTypes":["Ingress","Egress"]}}
             ])
     return {"apiVersion":"v1","kind":"List","items":items}
 

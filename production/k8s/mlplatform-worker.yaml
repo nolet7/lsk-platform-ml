@@ -19,7 +19,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: worker
-          image: REPLACE_WITH_APPROVED_ECR_WORKER_DIGEST
+          image: REPLACE_WITH_APPROVED_ECR_IMAGE_DIGEST
           env:
             - {name: APP_ENV, value: production}
             - name: DATABASE_URL
