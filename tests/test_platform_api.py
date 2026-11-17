@@ -18,6 +18,9 @@ class FakeStore:
         return {"id":"d1","revision":1,"image":IMAGE,"replicas":replicas,"namespace":namespace}
     def mark(self,tenant,actor,id,state):
         self.calls.append(("mark",state))
+    def revoke(self,tenant,actor,model_id,reason):
+        self.calls.append(("revoke",tenant,model_id))
+        return {"id":model_id,"state":"revoked"}
     def deployment(self,tenant,name,environment):
         return {"id":"d1","state":"submitted","tenant_id":tenant,"image":IMAGE,"revision":1}
     def history(self,tenant,name,environment):
@@ -35,7 +38,7 @@ def test_platform_registration_approval_and_deploy(monkeypatch):
     monkeypatch.setattr(api,"verify_evidence",lambda tenant, body: None)
     monkeypatch.setattr(api.controller,"apply",lambda *args:{"state":"submitted"})
     monkeypatch.setattr(api.controller,"observe",lambda *args, **kwargs:{"healthy":True,"state":"healthy"})
-    app.dependency_overrides[auth]=lambda:{"sub":"engineer","tenant_id":"tenant-a","scope":"ml:register ml:approve ml:deploy ml:read ml:rollback"}
+    app.dependency_overrides[auth]=lambda:{"sub":"engineer","tenant_id":"tenant-a","scope":"ml:register ml:approve ml:deploy ml:read ml:rollback ml:revoke"}
     client=TestClient(app)
     try:
         body={"name":"blade-quality","version":"v1","image":IMAGE,
@@ -45,9 +48,10 @@ def test_platform_registration_approval_and_deploy(monkeypatch):
         response=client.post("/v1/platform/deployments",
                              json={"name":"blade-quality","model_id":"m1","environment":"production","replicas":3})
         assert response.status_code==202
-        assert response.json()["state"]=="submitted"
+        assert response.json()["state"]=="pending"
         assert ("prepare","tenant-a","a-prod") in fake.calls
         assert client.get("/v1/platform/deployments/blade-quality?environment=production").status_code==200
+        assert client.post("/v1/platform/models/m1/revoke",json={"reason":"Model failed quality audit; revoke approval"}).status_code==200
     finally:
         app.dependency_overrides.clear()
 

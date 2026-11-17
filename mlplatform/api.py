@@ -7,10 +7,10 @@ import os
 from fastapi import FastAPI, HTTPException, Depends
 from app.security import auth, require_scope
 from mlplatform.manifest import validate_image, target_namespace
-from mlplatform.schemas import ModelRegistration, Approval, DeploymentRequest, RollbackRequest
+from mlplatform.schemas import ModelRegistration, Approval, DeploymentRequest, RollbackRequest, TrainingRequest
 from mlplatform.store import Store
 from mlplatform.mlflow_gate import verify_evidence
-from mlplatform import controller
+from mlplatform import controller, training, inference
 
 app = FastAPI(title="LSK ML Deployment Platform", version="1.0.0")
 store = Store()
@@ -101,6 +101,15 @@ def approve(model_id: str, body: Approval, ctx: dict = Depends(identity)):
     except ValueError as exc:
         raise HTTPException(409,str(exc)) from exc
 
+
+@app.post("/v1/platform/models/{model_id}/revoke")
+def revoke_model(model_id:str,body:Approval,ctx:dict=Depends(identity)):
+    check(ctx,"ml:revoke")
+    try:
+        return store.revoke(ctx["tenant"],ctx["actor"],model_id,body.reason)
+    except LookupError as exc:
+        raise HTTPException(404,"model missing or already revoked") from exc
+
 @app.post("/v1/platform/deployments", status_code=202)
 def deploy(body: DeploymentRequest, ctx: dict = Depends(identity)):
     check(ctx,"ml:deploy")
@@ -116,15 +125,9 @@ def deploy(body: DeploymentRequest, ctx: dict = Depends(identity)):
     except ValueError as exc:
         raise HTTPException(422,str(exc)) from exc
 
-    try:
-        controller.apply(ctx["tenant"],body.name,body.environment,
-                         row["image"],body.replicas,row["revision"])
-    except Exception as exc:
-        store.mark(ctx["tenant"],ctx["actor"],row["id"],"failed")
-        raise HTTPException(502,"Kubernetes reconciliation failed; inspect internal logs") from exc
-    store.mark(ctx["tenant"],ctx["actor"],row["id"],"submitted")
-    return {"id":row["id"],"revision":row["revision"],"state":"submitted",
-            "namespace":namespace,"note":"rollout health is not yet verified"}
+    # Request accepted into durable PostgreSQL queue; worker performs reconciliation.
+    return {"id":row["id"],"revision":row["revision"],"state":"pending",
+            "namespace":namespace,"note":"queued; inspect observed health using status API"}
 
 @app.get("/v1/platform/deployments/{name}")
 def status(name: str, environment: str, ctx: dict = Depends(identity)):
@@ -166,12 +169,46 @@ def rollback(name: str, environment: str, body: RollbackRequest,
         namespace=target_namespace(ctx["tenant"],environment)
         row=store.prepare(ctx["tenant"],ctx["actor"],str(target["model_id"]),
                           name,environment,target["replicas"],namespace)
-        controller.apply(ctx["tenant"],name,environment,row["image"],
-                         row["replicas"],row["revision"])
-    except Exception as exc:
-        if "row" in locals():
-            store.mark(ctx["tenant"],ctx["actor"],row["id"],"failed")
-        raise HTTPException(502,"rollback reconciliation failed") from exc
-    store.mark(ctx["tenant"],ctx["actor"],row["id"],"submitted")
+    except (LookupError, ValueError, PermissionError) as exc:
+        raise HTTPException(409,"rollback could not be queued") from exc
+
     return {"id":row["id"],"revision":row["revision"],"rolled_back_to":target["revision"],
-            "state":"submitted","reason":body.reason}
+            "state":"pending","reason":body.reason}
+
+@app.post("/v1/platform/training-jobs",status_code=202)
+def submit_training(body: TrainingRequest,ctx:dict=Depends(identity)):
+    check(ctx,"ml:train")
+    try:
+        validate_image(body.image)
+        training.validate_dataset(ctx["tenant"],body.dataset_uri)
+        namespace=target_namespace(ctx["tenant"],body.environment)
+        return store.create_training(ctx["tenant"],ctx["actor"],body,namespace)
+    except ValueError as exc:
+        raise HTTPException(422,str(exc)) from exc
+
+@app.get("/v1/platform/training-jobs/{job_id}")
+def training_status(job_id:str,ctx:dict=Depends(identity)):
+    check(ctx,"ml:read")
+    try:
+        row=store.training_detail(ctx["tenant"],job_id)
+    except LookupError as exc:
+        raise HTTPException(404,str(exc)) from exc
+    if row["state"]=="submitted":
+        try:
+            row["observed"]=training.observe_training(row)
+        except Exception as exc:
+            raise HTTPException(502,"RayJob status unavailable") from exc
+    return row
+
+@app.post("/v1/platform/inference/{name}")
+async def invoke_model(name:str,request:Request,environment:str,ctx:dict=Depends(identity)):
+    check(ctx,"ml:infer")
+    if request.headers.get("content-type","").split(";")[0].strip()!="application/json":
+        raise HTTPException(415,"application/json required")
+    declared=request.headers.get("content-length")
+    if declared and (not declared.isdigit() or int(declared)>inference.MAX_REQUEST_BYTES):
+        raise HTTPException(413,"prediction request exceeds payload limit")
+    body=await request.body()
+    from starlette.concurrency import run_in_threadpool
+    return await run_in_threadpool(inference.serve,store,ctx["tenant"],ctx["actor"],
+                                   name,environment,body)

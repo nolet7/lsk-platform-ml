@@ -12,7 +12,7 @@ spec:
     metadata:
       labels: {app: ml-platform-api}
     spec:
-      serviceAccountName: ml-platform-controller
+      serviceAccountName: ml-platform-reader
       automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true

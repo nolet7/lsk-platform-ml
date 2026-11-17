@@ -19,3 +19,14 @@ terraform init -backend=false
 terraform validate
 ```
 Actual plan/apply must run under authorized AWS credentials, with external state backend and reviewed real variable values.
+
+## Cryptography, audit and cost guardrails
+
+New Terraform resources add a customer-managed rotating KMS key, encrypted
+S3/RDS/ECR, S3 TLS-only policy, PostgreSQL RDS parameter group enforcing SSL,
+PostgreSQL logs to CloudWatch, budget threshold notifications and SNS-routed
+RDS CPU/storage alarms. All required contact/alert IDs and engine versions
+are supplied through environment-specific variables. AWS Budgets **alerts do
+not stop spending**. Protect the key policy and test a snapshot recovery and
+key access before authorizing a live tenant. A high-cost GPU node group is
+disabled by default.

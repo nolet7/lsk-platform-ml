@@ -22,3 +22,11 @@ class DeploymentRequest(BaseModel):
 
 class RollbackRequest(BaseModel):
     reason: str = Field(min_length=10, max_length=1000)
+
+class TrainingRequest(BaseModel):
+    name: str = Field(pattern=r"^[a-z][a-z0-9-]{1,39}$")
+    image: str = Field(min_length=100,max_length=350)
+    dataset_uri: str = Field(min_length=10,max_length=1000)
+    environment: Literal["stage", "production"]
+    workers: int = Field(ge=1,le=4)
+    gpu_per_worker: int = Field(ge=0,le=1)

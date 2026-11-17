@@ -1,0 +1,6 @@
+{
+  "tenant-a": {
+    "stage": "tenant-a-stage",
+    "production": "tenant-a-prod"
+  }
+}

@@ -26,17 +26,51 @@ def build(mapping):
                      "pod-security.kubernetes.io/enforce":"restricted"}}},
                 {"apiVersion":"v1","kind":"ServiceAccount",
                  "metadata":{"name":"ml-model-serving","namespace":namespace}},
+                {"apiVersion":"v1","kind":"ServiceAccount",
+                 "metadata":{"name":"ml-model-training","namespace":namespace}},
                 {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role",
                  "metadata":{"name":"ml-platform-workload-controller","namespace":namespace},
                  "rules":[
                      {"apiGroups":["apps"],"resources":["deployments"],"verbs":["get","create","patch"]},
-                     {"apiGroups":[""],"resources":["services"],"verbs":["get","create"]}
+                     {"apiGroups":[""],"resources":["services"],"verbs":["get","create"]},
+                     {"apiGroups":["ray.io"],"resources":["rayjobs"],"verbs":["get","create"]}
                  ]},
                 {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"RoleBinding",
                  "metadata":{"name":"ml-platform-controller","namespace":namespace},
                  "subjects":[{"kind":"ServiceAccount","name":"ml-platform-controller","namespace":"ml-quality"}],
                  "roleRef":{"kind":"Role","name":"ml-platform-workload-controller",
-                            "apiGroup":"rbac.authorization.k8s.io"}}
+                            "apiGroup":"rbac.authorization.k8s.io"}},
+                {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role",
+                 "metadata":{"name":"ml-platform-read-only","namespace":namespace},
+                 "rules":[{"apiGroups":["apps"],"resources":["deployments"],"verbs":["get"]},
+                          {"apiGroups":["ray.io"],"resources":["rayjobs"],"verbs":["get"]}]},
+                {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"RoleBinding",
+                 "metadata":{"name":"ml-platform-reader","namespace":namespace},
+                 "subjects":[{"kind":"ServiceAccount","name":"ml-platform-reader","namespace":"ml-quality"}],
+                 "roleRef":{"kind":"Role","name":"ml-platform-read-only",
+                            "apiGroup":"rbac.authorization.k8s.io"}},
+                {"apiVersion":"v1","kind":"ResourceQuota",
+                 "metadata":{"name":"ml-serving-quota","namespace":namespace},
+                 "spec":{"hard":{"requests.cpu":"12","requests.memory":"32Gi",
+                                  "limits.cpu":"24","limits.memory":"64Gi",
+                                  "pods":"36","services":"12"}}},
+                {"apiVersion":"v1","kind":"LimitRange",
+                 "metadata":{"name":"ml-serving-limits","namespace":namespace},
+                 "spec":{"limits":[{"type":"Container","defaultRequest":{"cpu":"250m","memory":"512Mi"},
+                                     "default":{"cpu":"2","memory":"2Gi"},
+                                     "max":{"cpu":"4","memory":"8Gi"}}]}},
+                {"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy",
+                 "metadata":{"name":"tenant-default-deny","namespace":namespace},
+                 "spec":{"podSelector":{},"policyTypes":["Ingress","Egress"]}},
+                {"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy",
+                 "metadata":{"name":"allow-model-gateway","namespace":namespace},
+                 "spec":{"podSelector":{"matchLabels":{"lsk.ai/managed-by":"ml-platform"}},
+                         "policyTypes":["Ingress"],
+                         "ingress":[{"from":[{
+                             "namespaceSelector":{"matchLabels":{
+                                "kubernetes.io/metadata.name":"ml-quality"}},
+                             "podSelector":{"matchLabels":{"app":"ml-platform-api"}}}],
+                             "ports":[{"protocol":"TCP","port":8080}]}]}}
             ])
     return {"apiVersion":"v1","kind":"List","items":items}
 

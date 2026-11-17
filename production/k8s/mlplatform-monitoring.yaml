@@ -48,3 +48,42 @@ spec:
           annotations:
             summary: ML platform API p95 request latency exceeds 500 ms
 # Alert thresholds are candidates and must be load-tested and approved by SRE.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ml-platform-worker
+  namespace: ml-quality
+  labels: {release: kube-prometheus-stack}
+spec:
+  selector:
+    matchLabels: {app: ml-platform-worker}
+  namespaceSelector:
+    matchNames: [ml-quality]
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ml-platform-worker-alerts
+  namespace: ml-quality
+  labels: {release: kube-prometheus-stack}
+spec:
+  groups:
+    - name: ml-platform-worker
+      rules:
+        - alert: MLPlatformReconciliationRetries
+          expr: sum(increase(lsk_ml_platform_worker_operations_total{result="retry"}[10m])) > 5
+          for: 10m
+          labels: {severity: warning}
+          annotations:
+            summary: Frequent ML platform reconciliation retries
+        - alert: MLPlatformWorkerUnavailable
+          expr: sum(up{namespace="ml-quality",service="ml-platform-worker-metrics"}) < 1
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: No ML platform worker metrics endpoint is healthy
