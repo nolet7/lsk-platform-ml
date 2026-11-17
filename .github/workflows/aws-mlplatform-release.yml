@@ -1,0 +1,130 @@
+name: ML Platform control plane AWS EKS release
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Protected production branch HEAD SHA"
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  build:
+    environment: production
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image: ${{ steps.digest.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Validate release branch
+        env:
+          SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          test "$(git rev-parse HEAD)" = "$SHA"
+          test "$(git ls-remote origin refs/heads/production | awk '{print $1}')" = "$SHA"
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build and push immutable ECR control plane image
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+          REPO: ${{ vars.ML_PLATFORM_ECR_REPOSITORY }}
+          SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(aws sts get-caller-identity --query Account --output text)" = "$ACCOUNT"
+          URI="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$REPO"
+          aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
+          docker build --pull -f mlplatform/Dockerfile -t "$URI:$SHA" .
+          docker push "$URI:$SHA"
+      - name: Resolve ECR digest
+        id: digest
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+          REPO: ${{ vars.ML_PLATFORM_ECR_REPOSITORY }}
+          SHA: ${{ inputs.source_sha }}
+        run: |
+          D="$(aws ecr describe-images --repository-name "$REPO" --image-ids "imageTag=$SHA" --query 'imageDetails[0].imageDigest' --output text)"
+          [[ "$D" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
+          echo "image=$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$REPO@$D" >> "$GITHUB_OUTPUT"
+  deploy:
+    needs: build
+    environment: production
+    runs-on: [self-hosted, linux, x64, aws-private]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Connect protected private cluster
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+          CLUSTER: ${{ vars.EKS_CLUSTER_NAME }}
+        run: |
+          set -euo pipefail
+          test "$(aws sts get-caller-identity --query Account --output text)" = "$ACCOUNT"
+          aws eks update-kubeconfig --name "$CLUSTER" --region "$REGION"
+          kubectl auth can-i create deployments -n ml-quality | grep -qx yes
+      - name: Update approved runtime configuration
+        env:
+          TENANT_NAMESPACE_MAP: ${{ vars.TENANT_NAMESPACE_MAP }}
+          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+          MODEL_EVALUATION_POLICIES: ${{ vars.MODEL_EVALUATION_POLICIES }}
+          MLFLOW_TRACKING_TOKEN: ${{ secrets.MLFLOW_TRACKING_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ISSUER: ${{ vars.OIDC_ISSUER }}
+          AUDIENCE: ${{ vars.OIDC_AUDIENCE }}
+          JWKS: ${{ vars.OIDC_JWKS_URL }}
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL" && test -n "$MLFLOW_TRACKING_TOKEN" && test -n "$TENANT_NAMESPACE_MAP" && test -n "$MODEL_EVALUATION_POLICIES"
+          python -c 'import json,os; assert isinstance(json.loads(os.environ["TENANT_NAMESPACE_MAP"]),dict); assert isinstance(json.loads(os.environ["MODEL_EVALUATION_POLICIES"]),dict)'
+          kubectl apply -f production/k8s/platform-serviceaccount.yaml
+          kubectl -n ml-quality create configmap ml-platform-config --from-literal=tenant_namespace_map="$TENANT_NAMESPACE_MAP" --from-literal=evaluation_policies="$MODEL_EVALUATION_POLICIES" --from-literal=mlflow_uri="$MLFLOW_TRACKING_URI" --from-literal=aws_account_id="$ACCOUNT" --from-literal=aws_region="$REGION" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n ml-quality create configmap ml-auth --from-literal=issuer="$ISSUER" --from-literal=audience="$AUDIENCE" --from-literal=jwks_url="$JWKS" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n ml-quality create secret generic ml-database --from-literal=url="$DATABASE_URL" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n ml-quality create secret generic mlflow-auth --from-literal=token="$MLFLOW_TRACKING_TOKEN" --dry-run=client -o yaml | kubectl apply -f -
+      - name: Apply immutable control plane image
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          set -euo pipefail
+          python production/scripts/prepare_release.py --input production/k8s/ml-platform-api.yaml --image "$IMAGE" --output /tmp/ml-platform-api.yaml
+          kubectl apply -f /tmp/ml-platform-api.yaml
+          kubectl -n ml-quality rollout status deploy/ml-platform-api --timeout=10m
+      - name: Verify platform health and deny unauthenticated model operations
+        run: |
+          set -euo pipefail
+          kubectl -n ml-quality port-forward svc/ml-platform-api 18080:80 >/tmp/platform-pf.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18080/readyz >/dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:18080/readyz
+          STATUS="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/v1/platform/deployments/test?environment=production)"
+          test "$STATUS" = 401
