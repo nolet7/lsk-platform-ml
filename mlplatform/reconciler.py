@@ -45,7 +45,7 @@ def run_once(store=None):
 
 def main():
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-    start_http_server(int(os.getenv("WORKER_METRICS_PORT","9100")),"0.0.0.0")
+    start_http_server(int(os.getenv("WORKER_METRICS_PORT","9100")),"0.0.0.0")  # nosec B104: internal pod scrape endpoint; enforce namespace ingress policy
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     while running:

@@ -17,7 +17,7 @@ def setup(monkeypatch):
 
 def row(gpu=0,uri="s3://lsk-datasets/tenant-a/datasets/version-1"):
     return {"id":str(uuid4()),"tenant_id":"tenant-a","environment":"stage",
-            "image":IMAGE,"dataset_uri":uri,"workers":2,"gpu_per_worker":gpu}
+            "name":"blade-quality","image":IMAGE,"dataset_uri":uri,"workers":2,"gpu_per_worker":gpu}
 
 def test_cpu_rayjob_is_scoped_and_fixed_command():
     namespace,obj=job_manifest(row())
