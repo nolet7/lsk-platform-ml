@@ -1,0 +1,129 @@
+name: Production AWS EKS release
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Full approved source commit SHA"
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Verify full immutable commit ID
+        env:
+          SHA: ${{ inputs.source_sha }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          test "$(git rev-parse HEAD)" = "$SHA"
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Confirm AWS account and log in
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          test "$(aws sts get-caller-identity --query Account --output text)" = "$ACCOUNT"
+          aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
+      - name: Build and upload immutable image
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          REPO="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$REPOSITORY"
+          docker build --pull -t "$REPO:$SHA" .
+          docker push "$REPO:$SHA"
+      - name: Fetch ECR sha256
+        id: image
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          D="$(aws ecr describe-images --repository-name "$REPOSITORY" --image-ids "imageTag=$SHA" --query 'imageDetails[0].imageDigest' --output text)"
+          [[ "$D" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
+          echo "image=$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$REPOSITORY@$D" >> "$GITHUB_OUTPUT"
+  deploy:
+    needs: build
+    environment: production
+    runs-on: [self-hosted, linux, x64, aws-private]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Verify target account, EKS and authorization
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          REGION: ${{ vars.AWS_REGION }}
+          CLUSTER: ${{ vars.EKS_CLUSTER_NAME }}
+        run: |
+          set -euo pipefail
+          test "$(aws sts get-caller-identity --query Account --output text)" = "$ACCOUNT"
+          aws eks update-kubeconfig --name "$CLUSTER" --region "$REGION"
+          kubectl cluster-info
+          kubectl auth can-i create deployments -n ml-quality
+      - name: Configure namespace, issuer and database
+        env:
+          ISSUER: ${{ vars.OIDC_ISSUER }}
+          AUDIENCE: ${{ vars.OIDC_AUDIENCE }}
+          JWKS: ${{ vars.OIDC_JWKS_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$ISSUER" && test -n "$AUDIENCE" && test -n "$JWKS" && test -n "$DATABASE_URL"
+          kubectl apply -f production/k8s/namespace.yaml
+          kubectl -n ml-quality create configmap ml-auth --from-literal=issuer="$ISSUER" --from-literal=audience="$AUDIENCE" --from-literal=jwks_url="$JWKS" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n ml-quality create secret generic ml-database --from-literal=url="$DATABASE_URL" --dry-run=client -o yaml | kubectl apply -f -
+      - name: Deploy immutable approved image
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          set -euo pipefail
+          python production/scripts/prepare_release.py --image "$IMAGE" --output /tmp/ml-release.yaml
+          kubectl apply -f /tmp/ml-release.yaml
+          kubectl apply -f production/k8s/reliability.yaml
+          kubectl -n ml-quality rollout status deployment/inspection-ml-api --timeout=10m
+      - name: Validate readiness and deny demo key
+        run: |
+          set -euo pipefail
+          kubectl -n ml-quality port-forward service/inspection-ml-api 18765:8765 >/tmp/ml-portforward.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18765/readyz >/dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:18765/readyz
+          CODE="$(curl --silent -o /dev/null -w '%{http_code}' -H 'X-Demo-Key: local-demo-key' http://127.0.0.1:18765/v1/repair-orders/RO-1001)"
+          test "$CODE" = "401"
