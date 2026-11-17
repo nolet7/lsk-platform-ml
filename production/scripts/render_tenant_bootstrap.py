@@ -26,11 +26,14 @@ def build(mapping):
                      "pod-security.kubernetes.io/enforce":"restricted"}}},
                 {"apiVersion":"v1","kind":"ServiceAccount",
                  "metadata":{"name":"ml-model-serving","namespace":namespace}},
+                {"apiVersion":"v1","kind":"ServiceAccount",
+                 "metadata":{"name":"ml-model-training","namespace":namespace}},
                 {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role",
                  "metadata":{"name":"ml-platform-workload-controller","namespace":namespace},
                  "rules":[
                      {"apiGroups":["apps"],"resources":["deployments"],"verbs":["get","create","patch"]},
-                     {"apiGroups":[""],"resources":["services"],"verbs":["get","create"]}
+                     {"apiGroups":[""],"resources":["services"],"verbs":["get","create"]},
+                     {"apiGroups":["ray.io"],"resources":["rayjobs"],"verbs":["get","create"]}
                  ]},
                 {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"RoleBinding",
                  "metadata":{"name":"ml-platform-controller","namespace":namespace},
@@ -39,7 +42,8 @@ def build(mapping):
                             "apiGroup":"rbac.authorization.k8s.io"}},
                 {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role",
                  "metadata":{"name":"ml-platform-read-only","namespace":namespace},
-                 "rules":[{"apiGroups":["apps"],"resources":["deployments"],"verbs":["get"]}]},
+                 "rules":[{"apiGroups":["apps"],"resources":["deployments"],"verbs":["get"]},
+                          {"apiGroups":["ray.io"],"resources":["rayjobs"],"verbs":["get"]}]},
                 {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"RoleBinding",
                  "metadata":{"name":"ml-platform-reader","namespace":namespace},
                  "subjects":[{"kind":"ServiceAccount","name":"ml-platform-reader","namespace":"ml-quality"}],

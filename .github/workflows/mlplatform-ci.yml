@@ -49,5 +49,6 @@ jobs:
         run: |
           psql "$DATABASE_URL_TEST" -v ON_ERROR_STOP=1 -f production/db/002_platform_control_plane.sql
           psql "$DATABASE_URL_TEST" -v ON_ERROR_STOP=1 -f production/db/003_reconciliation.sql
+          psql "$DATABASE_URL_TEST" -v ON_ERROR_STOP=1 -f production/db/004_training_jobs.sql
       - name: PostgreSQL-backed platform tests
         run: python -m pytest -q tests/integration/test_postgres_registry.py

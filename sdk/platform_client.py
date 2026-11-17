@@ -42,6 +42,17 @@ class MLPlatformClient:
         return self._request("POST",f"/v1/platform/deployments/{name}/rollback",
                              params={"environment":environment},json={"reason":reason})
 
+    def train_model(self, *, name, image, dataset_uri, environment="stage",
+                    workers=1, gpu_per_worker=0):
+        return self._request("POST","/v1/platform/training-jobs",json={
+            "name":name,"image":image,"dataset_uri":dataset_uri,
+            "environment":environment,"workers":workers,
+            "gpu_per_worker":gpu_per_worker
+        })
+
+    def training_status(self, job_id):
+        return self._request("GET",f"/v1/platform/training-jobs/{job_id}")
+
     def close(self):
         self.client.close()
 

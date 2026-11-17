@@ -8,7 +8,7 @@ import logging
 import os
 import signal
 import time
-from mlplatform import controller
+from mlplatform import controller, training
 from mlplatform.store import Store
 
 LOG = logging.getLogger("mlplatform.reconciler")
@@ -22,7 +22,7 @@ def run_once(store=None):
     db = store or Store()
     job = db.claim()
     if not job:
-        return False
+        return run_training_once(db)
     actor = "ml-platform-reconciler"
     try:
         if db.has_newer_revision(job["tenant_id"], job["name"], job["environment"], job["revision"]):
@@ -50,3 +50,16 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def run_training_once(db):
+    job=db.claim_training()
+    if not job:
+        return False
+    actor="ml-platform-reconciler"
+    try:
+        training.apply_training(job)
+        db.finish_training(job["tenant_id"],actor,str(job["id"]),job["claim_token"],"submitted")
+    except Exception:
+        LOG.exception("RayJob reconciliation failed for id=%s",job["id"])
+        db.retry_training(job["tenant_id"],actor,str(job["id"]),job["claim_token"])
+    return True

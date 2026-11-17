@@ -165,3 +165,76 @@ class Store:
             cur.execute("""INSERT INTO platform_audit (tenant_id,actor,event,resource_id)
                            VALUES (%s,%s,%s,%s)""",
                         (tenant,actor,"deployment_"+row["state"],deployment_id))
+
+    def create_training(self,tenant,actor,body,namespace):
+        job_id=str(uuid4())
+        with connect() as conn,conn.cursor() as cur:
+            cur.execute("""INSERT INTO platform_training_jobs
+                (id,tenant_id,created_by,name,environment,image,dataset_uri,namespace,workers,gpu_per_worker)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (job_id,tenant,actor,body.name,body.environment,body.image,
+                 body.dataset_uri,namespace,body.workers,body.gpu_per_worker))
+            cur.execute("""INSERT INTO platform_audit (tenant_id,actor,event,resource_id)
+                           VALUES (%s,%s,'training_requested',%s)""",
+                        (tenant,actor,job_id))
+        return {"id":job_id,"state":"pending","namespace":namespace}
+
+    def training_detail(self,tenant,job_id):
+        with connect() as conn,conn.cursor() as cur:
+            cur.execute("""SELECT id,tenant_id,name,environment,image,dataset_uri,namespace,
+                       workers,gpu_per_worker,state,retry_count,created_at
+                       FROM platform_training_jobs WHERE id=%s AND tenant_id=%s""",
+                        (job_id,tenant))
+            row=cur.fetchone()
+        if row is None:
+            raise LookupError("training job not found")
+        return dict(row)
+
+    def claim_training(self):
+        with connect() as conn,conn.cursor() as cur:
+            cur.execute("""WITH candidate AS (
+                  SELECT id FROM platform_training_jobs
+                  WHERE (state IN ('pending','retry') AND next_attempt_at<=now())
+                    OR (state='reconciling' AND lease_until<now())
+                  ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1
+                )
+                UPDATE platform_training_jobs j
+                SET state='reconciling',lease_until=now()+interval '5 minutes',
+                    claim_token=gen_random_uuid(),updated_at=now()
+                FROM candidate WHERE j.id=candidate.id
+                RETURNING j.id,j.tenant_id,j.name,j.environment,j.image,
+                          j.dataset_uri,j.workers,j.gpu_per_worker,j.claim_token""")
+            row=cur.fetchone()
+            return dict(row) if row else None
+
+    def finish_training(self,tenant,actor,job_id,claim_token,state):
+        if state!="submitted":
+            raise ValueError("invalid training completion state")
+        with connect() as conn,conn.cursor() as cur:
+            cur.execute("""UPDATE platform_training_jobs
+                SET state=%s,claim_token=NULL,lease_until=NULL,updated_at=now()
+                WHERE id=%s AND tenant_id=%s AND claim_token=%s
+                  AND state='reconciling' RETURNING id""",
+                (state,job_id,tenant,claim_token))
+            if not cur.fetchone():
+                raise RuntimeError("training lease expired")
+            cur.execute("""INSERT INTO platform_audit (tenant_id,actor,event,resource_id)
+                           VALUES (%s,%s,'training_submitted',%s)""",
+                        (tenant,actor,job_id))
+
+    def retry_training(self,tenant,actor,job_id,claim_token):
+        with connect() as conn,conn.cursor() as cur:
+            cur.execute("""UPDATE platform_training_jobs
+                SET retry_count=retry_count+1,
+                    state=CASE WHEN retry_count+1>=5 THEN 'failed' ELSE 'retry' END,
+                    next_attempt_at=now()+make_interval(secs=>LEAST(300,POWER(2,retry_count+1)::integer*5)),
+                    claim_token=NULL,lease_until=NULL,updated_at=now()
+                WHERE id=%s AND tenant_id=%s AND claim_token=%s
+                  AND state='reconciling' RETURNING state""",
+                (job_id,tenant,claim_token))
+            row=cur.fetchone()
+            if not row:
+                raise RuntimeError("training lease expired")
+            cur.execute("""INSERT INTO platform_audit (tenant_id,actor,event,resource_id)
+                           VALUES (%s,%s,%s,%s)""",
+                        (tenant,actor,"training_"+row["state"],job_id))

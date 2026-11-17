@@ -7,10 +7,10 @@ import os
 from fastapi import FastAPI, HTTPException, Depends
 from app.security import auth, require_scope
 from mlplatform.manifest import validate_image, target_namespace
-from mlplatform.schemas import ModelRegistration, Approval, DeploymentRequest, RollbackRequest
+from mlplatform.schemas import ModelRegistration, Approval, DeploymentRequest, RollbackRequest, TrainingRequest
 from mlplatform.store import Store
 from mlplatform.mlflow_gate import verify_evidence
-from mlplatform import controller
+from mlplatform import controller, training
 
 app = FastAPI(title="LSK ML Deployment Platform", version="1.0.0")
 store = Store()
@@ -165,3 +165,28 @@ def rollback(name: str, environment: str, body: RollbackRequest,
 
     return {"id":row["id"],"revision":row["revision"],"rolled_back_to":target["revision"],
             "state":"pending","reason":body.reason}
+
+@app.post("/v1/platform/training-jobs",status_code=202)
+def submit_training(body: TrainingRequest,ctx:dict=Depends(identity)):
+    check(ctx,"ml:train")
+    try:
+        validate_image(body.image)
+        training.validate_dataset(ctx["tenant"],body.dataset_uri)
+        namespace=target_namespace(ctx["tenant"],body.environment)
+        return store.create_training(ctx["tenant"],ctx["actor"],body,namespace)
+    except ValueError as exc:
+        raise HTTPException(422,str(exc)) from exc
+
+@app.get("/v1/platform/training-jobs/{job_id}")
+def training_status(job_id:str,ctx:dict=Depends(identity)):
+    check(ctx,"ml:read")
+    try:
+        row=store.training_detail(ctx["tenant"],job_id)
+    except LookupError as exc:
+        raise HTTPException(404,str(exc)) from exc
+    if row["state"]=="submitted":
+        try:
+            row["observed"]=training.observe_training(row)
+        except Exception as exc:
+            raise HTTPException(502,"RayJob status unavailable") from exc
+    return row
