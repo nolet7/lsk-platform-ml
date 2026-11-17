@@ -36,7 +36,7 @@ def build(mapping):
                  "metadata":{"name":"ml-platform-controller","namespace":namespace},
                  "subjects":[{"kind":"ServiceAccount","name":"ml-platform-controller","namespace":"ml-quality"}],
                  "roleRef":{"kind":"Role","name":"ml-platform-workload-controller",
-                            "apiGroup":"rbac.authorization.k8s.io"}}
+                            "apiGroup":"rbac.authorization.k8s.io"}},
                 {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"Role",
                  "metadata":{"name":"ml-platform-read-only","namespace":namespace},
                  "rules":[{"apiGroups":["apps"],"resources":["deployments"],"verbs":["get"]}]},
