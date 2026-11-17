@@ -3,11 +3,11 @@ from scripts.verify_phase_gates import APPROVERS, CONTROLS, main, verify
 
 def sample(phase):
     return {"phases": {phase: {"controls": {
-        k: {"status": "complete", "evidence": ["https://tickets.example.org/change/123"]}
+        k: {"status": "complete", "evidence": ["https://tickets.internal.test/change/123"]}
         for k in CONTROLS[phase]},
         "approvals": [
             {"role": role, "signer": "Synthetic Reviewer", "timestamp": "2026-11-16T00:00:00Z",
-             "reference": "https://tickets.example.org/approvals/123"}
+             "reference": "https://tickets.internal.test/approvals/123"}
             for role in APPROVERS[phase]]
     }}}
 
